@@ -103,6 +103,17 @@ cd video-server
 ./mvnw test                     # 单元测试
 ```
 
+### 后端（Windows 本地开发，无需 Docker）
+
+```powershell
+# 初始化数据库（首次；自动读取仓库根目录 .env）
+powershell -ExecutionPolicy Bypass -File scripts/dev/init-db.ps1
+# 启动后端（自动加载 .env、切换到 JDK 21）
+powershell -ExecutionPolicy Bypass -File scripts/dev/start-backend.ps1
+```
+
+> 本机默认 `java` 可能是老版本，脚本会优先用 `VIDKEEP_JDK21` / `JDK21_HOME`（或自动探测）定位 JDK 21。
+
 ### 前端
 
 ```bash
@@ -130,13 +141,19 @@ docker compose down                       # 停止
 docker exec -i vidkeep-mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" vidkeep < deploy/sql/init.sql
 ```
 
+Windows 本机 MySQL（无 Docker）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/dev/init-db.ps1
+```
+
 ---
 
 ## 6. 当前进度
 
 | 里程碑 | 内容 | 状态 |
 |---|---|---|
-| M0 | 环境与骨架、登录 | ⬜ 待开始 |
+| M0 | 环境与骨架、登录 | ✅ 已完成（2026-11-16：骨架 + JWT 登录，本地联调通过） |
 | M1 | 分片上传与存储 | ⬜ 待开始 |
 | M2 | 转码流水线与 HLS 播放 | ⬜ 待开始 |
 | M3 | 管理后台 | ⬜ 待开始 |

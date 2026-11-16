@@ -114,6 +114,43 @@ cd deploy
 docker compose up -d --build
 ```
 
+### 6. Windows 本地开发（无 Docker）
+
+本机已装 MySQL 8 / Redis 7 / JDK 21 时，可直接用开发脚本（脚本自动读取 `.env`、切换 JDK 21）：
+
+```powershell
+# 1) 配置环境变量（JWT_SECRET 至少 32 字符；JDK21_HOME 可选）
+Copy-Item .env.example .env
+
+# 2) 建库建表 + 默认管理员（admin / admin123）
+powershell -ExecutionPolicy Bypass -File scripts/dev/init-db.ps1
+
+# 3) 启动后端 → http://localhost:8080
+powershell -ExecutionPolicy Bypass -File scripts/dev/start-backend.ps1
+
+# 4) 另开终端启动前端 → http://localhost:5173
+cd video-web
+npm install
+npm run dev
+```
+
+### 7. M0 接口自测
+
+```bash
+# 登录成功 → code 0 + token
+curl -s -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"admin\",\"password\":\"admin123\"}"
+
+# 未登录访问 → code 2001
+curl -s http://localhost:8080/api/auth/me
+
+# 密码错误 → code 2002
+curl -s -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"admin\",\"password\":\"wrong\"}"
+```
+
 ---
 
 ## 文档
@@ -129,7 +166,7 @@ docker compose up -d --build
 
 | 里程碑 | 内容 | 状态 |
 |---|---|---|
-| M0 | 环境与骨架、登录 | ⬜ 待开始 |
+| M0 | 环境与骨架、登录 | ✅ 已完成（2026-11-16） |
 | M1 | 分片上传与存储 | ⬜ 待开始 |
 | M2 | 转码流水线与 HLS 播放 | ⬜ 待开始 |
 | M3 | 管理后台 | ⬜ 待开始 |
