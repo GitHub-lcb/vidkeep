@@ -7,15 +7,14 @@ import { useUserStore } from '@/stores/user'
 interface AdminMenuItem {
   index: string
   title: string
-  /** M1/M2/M3 才会开放的占位菜单 */
-  disabled: boolean
 }
 
+// M1 上传与 M3 管理页已开放，菜单全部可点击
 const MENU_ITEMS: AdminMenuItem[] = [
-  { index: '/admin/dashboard', title: '仪表盘', disabled: false },
-  { index: '/admin/videos', title: '视频管理', disabled: true },
-  { index: '/admin/upload', title: '视频上传', disabled: true },
-  { index: '/admin/categories', title: '分类管理', disabled: true },
+  { index: '/admin/dashboard', title: '仪表盘' },
+  { index: '/admin/videos', title: '视频管理' },
+  { index: '/admin/upload', title: '视频上传' },
+  { index: '/admin/categories', title: '分类管理' },
 ]
 
 const route = useRoute()
@@ -27,8 +26,8 @@ const activeMenu = computed<string>(() => route.path)
 const pageTitle = computed<string>(() =>
   typeof route.meta.title === 'string' ? route.meta.title : '管理后台',
 )
-// 窄屏顶栏菜单只放已开放项，避免单行溢出
-const compactMenuItems = MENU_ITEMS.filter((item) => !item.disabled)
+// 窄屏顶栏菜单展示全部已开放项
+const compactMenuItems = MENU_ITEMS
 
 let mediaQuery: MediaQueryList | null = null
 
@@ -77,14 +76,8 @@ async function handleLogout(): Promise<void> {
         text-color="#99a5b6"
         active-text-color="#ffffff"
       >
-        <el-menu-item
-          v-for="item in MENU_ITEMS"
-          :key="item.index"
-          :index="item.index"
-          :disabled="item.disabled"
-        >
+        <el-menu-item v-for="item in MENU_ITEMS" :key="item.index" :index="item.index">
           <span>{{ item.title }}</span>
-          <span v-if="item.disabled" class="admin-menu__badge">待开通</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -205,22 +198,7 @@ async function handleLogout(): Promise<void> {
       color: #ffffff;
       background: rgba(91, 141, 239, 0.18);
     }
-
-    &.is-disabled {
-      color: #5c6778;
-      opacity: 1;
-    }
   }
-}
-
-.admin-menu__badge {
-  margin-left: auto;
-  padding: 0 5px;
-  font-size: 10px;
-  line-height: 16px;
-  color: #5c6778;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
 }
 
 .admin-body {
