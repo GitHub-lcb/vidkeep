@@ -1,0 +1,4 @@
+# 转码 Worker（worker）：与 app 同镜像，只消费 Redis Stream 队列，不暴露 Web 端口
+spring:
+  main:
+    web-application-type: none
