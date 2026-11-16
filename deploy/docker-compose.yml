@@ -47,6 +47,10 @@ services:
       - MYSQL_DATABASE=${MYSQL_DATABASE:-vidkeep}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      # .env 面向 Windows 本地开发，容器内使用 Linux 路径/命令（覆盖 env_file）
+      - DATA_DIR=/data
+      - FFMPEG_PATH=ffmpeg
+      - FFPROBE_PATH=ffprobe
     ports:
       - "8080:8080"
     volumes:
@@ -77,6 +81,9 @@ services:
       - MYSQL_DATABASE=${MYSQL_DATABASE:-vidkeep}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - DATA_DIR=/data
+      - FFMPEG_PATH=ffmpeg
+      - FFPROBE_PATH=ffprobe
     volumes:
       - ../data:/data
       - ../logs:/logs
