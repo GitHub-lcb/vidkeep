@@ -1,0 +1,102 @@
+# ===========================================
+# vidkeep 单机部署编排
+#
+# 启动：
+#   cd deploy
+#   docker compose --env-file ../.env up -d --build
+#
+# 只起数据库（本地开发）：
+#   docker compose --env-file ../.env up -d mysql redis
+#
+# 查看日志：
+#   docker compose logs -f app
+# ===========================================
+
+services:
+  # ---------- Nginx：静态 HLS + 前端 + API 反代 ----------
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: vidkeep-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ../data/hls:/data/hls:ro
+      - ../video-web/dist:/usr/share/nginx/html:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  # ---------- 后端 API ----------
+  app:
+    build:
+      context: ../video-server
+    container_name: vidkeep-app
+    env_file:
+      - ../.env
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - TZ=Asia/Shanghai
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../data:/data
+      - ../logs:/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  # ---------- 转码 Worker（与 app 同镜像，只跑队列） ----------
+  worker:
+    build:
+      context: ../video-server
+    container_name: vidkeep-worker
+    command: ["java", "-jar", "app.jar", "--spring.profiles.active=worker"]
+    env_file:
+      - ../.env
+    environment:
+      - TZ=Asia/Shanghai
+      - TRANSCODE_CONCURRENCY=1
+    volumes:
+      - ../data:/data
+      - ../logs:/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  # ---------- MySQL ----------
+  mysql:
+    image: mysql:8.0
+    container_name: vidkeep-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-vidkeep}
+      TZ: Asia/Shanghai
+    volumes:
+      - ../data/mysql:/var/lib/mysql
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # ---------- Redis：缓存 + 上传会话 + 转码队列 ----------
+  redis:
+    image: redis:7-alpine
+    container_name: vidkeep-redis
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - ../data/redis:/data
+    restart: unless-stopped
