@@ -129,9 +129,9 @@ CREATE TABLE IF NOT EXISTS `play_history` (
 -- 初始数据
 -- ----------------------------
 -- 默认管理员：admin / admin123（首次登录后请立即修改）
--- 密码为 BCrypt 哈希，对应明文 admin123
+-- 密码为 BCrypt 哈希（cost=10），已校验对应明文 admin123
 INSERT INTO `user` (`username`, `password`, `nickname`, `role`)
-SELECT 'admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVEFDa', '管理员', 'ADMIN'
+SELECT 'admin', '$2a$10$/fDcFJSFMLZsGuWd0XLSnODHrWe0FSrluTn5cU2rRuYmp7S6kgsY6', '管理员', 'ADMIN'
 WHERE NOT EXISTS (SELECT 1 FROM `user` WHERE `username` = 'admin');
 
 INSERT INTO `category` (`name`, `sort`)

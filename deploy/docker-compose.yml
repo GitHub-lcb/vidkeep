@@ -39,6 +39,14 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - TZ=Asia/Shanghai
+      # 容器内通过服务名访问 mysql / redis，覆盖 .env 中的本地地址
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-vidkeep}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     ports:
       - "8080:8080"
     volumes:
@@ -62,6 +70,13 @@ services:
     environment:
       - TZ=Asia/Shanghai
       - TRANSCODE_CONCURRENCY=1
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-vidkeep}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     volumes:
       - ../data:/data
       - ../logs:/logs
