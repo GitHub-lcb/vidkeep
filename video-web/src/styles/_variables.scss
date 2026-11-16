@@ -1,0 +1,36 @@
+// 设计变量：深色 ink 底 + 单一蓝色强调，避免彩色堆叠的模板感
+$vk-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+  'Microsoft YaHei', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+// 深色面（登录页 / 前台 / 后台侧栏共用同一套 ink 色阶）
+$vk-ink-900: #080c13;
+$vk-ink-800: #0d131e;
+$vk-ink-700: #111826;
+$vk-ink-600: #151d2b;
+$vk-line: rgba(255, 255, 255, 0.08);
+$vk-text: #e8edf5;
+$vk-text-muted: #8b97a8;
+$vk-accent: #5b8def;
+
+// 浅色面（管理后台内容区）
+$vk-light-bg: #f5f6f8;
+$vk-light-surface: #ffffff;
+$vk-light-border: #e8ebf0;
+$vk-light-text: #1f2733;
+$vk-light-text-muted: #7b8698;
+
+// 响应式断点
+$vk-breakpoint-tablet: 900px;
+$vk-breakpoint-mobile: 640px;
+
+@mixin vk-tablet {
+  @media (max-width: $vk-breakpoint-tablet) {
+    @content;
+  }
+}
+
+@mixin vk-mobile {
+  @media (max-width: $vk-breakpoint-mobile) {
+    @content;
+  }
+}

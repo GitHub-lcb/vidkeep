@@ -1,0 +1,70 @@
+@use './variables' as *;
+
+// Element Plus 主题色与品牌强调色对齐（覆盖默认蓝，保留浅色变体供 hover/禁用态）
+:root {
+  color-scheme: light;
+  --el-color-primary: #{$vk-accent};
+  --el-color-primary-light-3: #7ba4f5;
+  --el-color-primary-light-5: #9dbcfa;
+  --el-color-primary-light-7: #c2d5fc;
+  --el-color-primary-light-8: #d6e3fd;
+  --el-color-primary-light-9: #eef3ff;
+  --el-color-primary-dark-2: #4a76cf;
+}
+
+body {
+  font-family: $vk-font-sans;
+  color: $vk-light-text;
+  background-color: $vk-light-bg;
+}
+
+/* ---------- 通用工具类 ---------- */
+
+.vk-muted {
+  color: $vk-light-text-muted;
+}
+
+/* 管理后台内页统一页面骨架（Dashboard 及后续 M3 页面共用） */
+.vk-page {
+  padding: 24px 28px 40px;
+
+  @include vk-tablet {
+    padding: 16px;
+  }
+}
+
+.vk-page__title {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #151c28;
+}
+
+.vk-page__subtitle {
+  margin-top: 6px;
+  font-size: 13px;
+  color: $vk-light-text-muted;
+}
+
+.vk-card {
+  padding: 20px;
+  background: $vk-light-surface;
+  border: 1px solid $vk-light-border;
+  border-radius: 12px;
+}
+
+/* 三列卡片栅格：平板两列、手机单列 */
+.vk-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+
+  @include vk-tablet {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @include vk-mobile {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

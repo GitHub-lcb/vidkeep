@@ -1,0 +1,4 @@
+// 全局样式入口：组件私有样式写在各自 SFC 的 <style scoped lang="scss"> 中
+@use './reset';
+@use './variables' as *;
+@use './base';
