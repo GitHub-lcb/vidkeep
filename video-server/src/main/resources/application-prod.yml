@@ -1,4 +1,8 @@
-# 生产环境（prod）：容器内运行，日志挂载到 /logs
+# 生产环境（prod）：app 容器只提供 HTTP 接口，转码由 worker 容器消费队列
+app:
+  transcode:
+    worker-enabled: false
+
 logging:
   level:
     root: info

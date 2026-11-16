@@ -2,3 +2,7 @@
 spring:
   main:
     web-application-type: none
+
+app:
+  transcode:
+    worker-enabled: true
