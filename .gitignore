@@ -33,15 +33,9 @@ pnpm-debug.log*
 data/
 logs/
 *.log
-*.mp4
-*.mov
-*.mkv
-*.avi
-*.webm
-*.flv
-*.ts
-*.m3u8
-*.jpg.tmp
+
+# 视频/HLS 产物统一落在 data/ 下，已由 data/ 规则覆盖。
+# 注意：禁止在这里写 *.ts 之类的全局规则 —— 会误伤 TypeScript 源码。
 
 # ---- IDE ----
 .idea/
