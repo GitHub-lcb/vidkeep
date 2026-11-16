@@ -23,7 +23,7 @@ vidkeep 是自建视频站：管理员后台上传自有视频 → 后端 FFmpeg
 | artplayer | ^5.2.3 | @types/node | ^22.5.0 |
 | hls.js | ^1.5.15 | dayjs | ^1.11.13 |
 
-> `artplayer` / `hls.js` M0 阶段只安装、不使用，M2 接入 HLS 播放时启用。
+> `artplayer` / `hls.js` 用于 M2 播放器（`components/HlsPlayer.vue`），M1/M3 页面不直接引用。
 > 不引入 Tailwind、其他 UI 库或请求库。
 
 ## 本地运行
@@ -48,6 +48,9 @@ server: {
   port: 5173,
   proxy: {
     '/api': { target: 'http://localhost:8080', changeOrigin: true },
+    // 本地开发由后端直接分发 HLS 与封面（生产走 Nginx）
+    '/hls': { target: 'http://localhost:8080', changeOrigin: true },
+    '/covers': { target: 'http://localhost:8080', changeOrigin: true },
   },
 }
 ```
@@ -59,58 +62,79 @@ server: {
 ```
 video-web/
 ├── index.html                 入口 HTML（zh-CN、移动端 viewport）
-├── vite.config.ts             alias @ → src、5173 端口、/api 代理
+├── vite.config.ts             alias @ → src、5173 端口、/api + /hls + /covers 代理
 ├── tsconfig.json              strict + 路径别名，含 vite.config.ts
 └── src/
     ├── main.ts                创建应用：Pinia → Router → Element Plus（zh-cn）
     ├── App.vue                仅保留 <router-view />，布局由路由决定
     ├── api/
     │   ├── request.ts         axios 实例：Bearer 注入、Result 解包、BizError、2001 跳登录
-    │   └── auth.ts            login / me / logout
-    ├── types/                 api.ts（Result/PageResult/错误码）、auth.ts、router.d.ts
-    ├── stores/
-    │   └── user.ts            登录态（token/user 持久化到 localStorage）
+    │   ├── auth.ts            login / me / logout
+    │   ├── video.ts           后台视频 CRUD / 上下架 / 删单集
+    │   ├── category.ts        分类列表 + 管理端 CRUD
+    │   ├── upload.ts          check / init / 分片 PUT / status / complete
+    │   ├── transcode.ts       转码进度 / 重试 / 取消
+    │   └── play.ts            前台列表/详情、播放地址、播放进度
+    ├── types/                 api / auth / video / category / upload / transcode / play / router
+    ├── stores/                user.ts（登录态）、player.ts（设备 ID + 本地进度）
     ├── router/
     │   └── index.ts           路由表 + 登录/角色守卫 + 404 兜底
     ├── layouts/               AdminLayout（侧栏 + 顶栏）、PortalLayout（前台顶栏）
+    ├── components/            UploadPanel（分片上传）、HlsPlayer（播放器）、VideoCard
     ├── views/
-    │   ├── admin/             Login.vue、Dashboard.vue
-    │   ├── portal/            Home.vue
+    │   ├── admin/             Login / Dashboard / VideoList / VideoEdit / VideoUpload / CategoryList
+    │   ├── portal/            Home / VideoDetail / Player
     │   └── NotFound.vue       404
-    ├── utils/                 storage.ts（登录态存储）、format.ts（时长/大小）、throttle.ts
+    ├── utils/                 storage / device / format / throttle / hash（抽样指纹）
     └── styles/                index.scss 入口 + reset / variables / base
 ```
 
-## 路由与访问控制（M0）
+## 路由与访问控制
 
 | 路由 | 页面 | 权限 |
 |---|---|---|
-| `/` | 前台首页占位 | 公开 |
+| `/` | 前台首页（分类筛选 + 搜索 + 视频网格 + 分页） | 公开 |
+| `/videos/:id` | 前台详情（简介 + 剧集列表，转码中/失败有状态提示） | 公开 |
+| `/play/:videoId/:episodeId` | 播放页（ArtPlayer + hls.js、剧集切换、进度记忆） | 公开 |
 | `/admin/login` | 管理后台登录 | 公开；已登录会跳仪表盘 |
-| `/admin/dashboard` | 仪表盘占位（M1/M2/M3 模块卡片） | 需登录 + ADMIN |
+| `/admin/dashboard` | 仪表盘（视频总数/分类数等真实统计） | 需登录 + ADMIN |
+| `/admin/videos` | 视频列表（筛选/分页/上下架/删除/新建） | 需登录 + ADMIN |
+| `/admin/videos/:id` | 视频编辑（信息 + 剧集表格 + 预览/删单集） | 需登录 + ADMIN |
+| `/admin/upload` | 视频上传（选作品 + 分片上传 + 转码进度） | 需登录 + ADMIN |
+| `/admin/categories` | 分类管理（CRUD） | 需登录 + ADMIN |
 | 其他 | 404 兜底 | — |
 
 守卫规则（`src/router/index.ts`）：未登录访问 `/admin/**` → `/admin/login?redirect=...`；
 已登录但 `role !== 'ADMIN'` → 提示无权限并回登录页；后端返回 `code = 2001` 时清本地登录态并跳登录页。
 
-## 接口约定（M0）
+## 接口约定
 
 统一响应体 `{ code, message, data }`，业务错误也是 HTTP 200：
 
 - `code === 0`：`request.ts` 直接返回 `data`，调用方拿到的是业务数据而非 AxiosResponse
 - `code !== 0`：抛出 `BizError`（携带 `code` 与后端 `message`），用 `isBizError(error)` 收窄后展示
-- `code === 2001`：清除 local，`window.location` 跳 `/admin/login`（用 location 而非 router，避免循环依赖）
+- `code === 2001`：清除本地登录态，`window.location` 跳 `/admin/login`（用 location 而非 router，避免循环依赖）
 
-已封装接口：`login(username, password)`、`me()`、`logout()`。
+已封装模块：
 
-## M0 完成范围
+| 文件 | 接口 |
+|---|---|
+| `api/auth.ts` | 登录 / 当前用户 / 登出 |
+| `api/video.ts` | 后台视频列表、详情、新建、编辑、删除、上下架、删单集 |
+| `api/category.ts` | 分类列表 + 管理端 CRUD |
+| `api/upload.ts` | 秒传检查、init、分片 PUT、status、complete |
+| `api/transcode.ts` | 转码进度查询、重试、取消 |
+| `api/play.ts` | 前台列表/详情、播放地址、播放进度上报/查询 |
 
-- [x] Vite + Vue3 + TS 脚手架、路径别名、代理
+## M0–M3 完成范围
+
+- [x] Vite + Vue3 + TS 脚手架、路径别名、代理（`/api`、`/hls`、`/covers`）
 - [x] Axios 封装（Result 解包 / Bearer / BizError / 2001 处理）
-- [x] Pinia 登录态持久化（`vidkeep_token` / `vidkeep_user`）
-- [x] 路由守卫与 404
-- [x] 登录页（Element Plus 表单校验、loading、回车提交、失败提示后端 message）
-- [x] 后台布局 + 仪表盘占位、前台布局 + 首页占位
+- [x] Pinia 登录态持久化；登录页与路由守卫
+- [x] M1 上传：抽样指纹（`utils/hash.ts`）、3 并发分片、断点续传、秒传、转码进度轮询/重试/取消
+- [x] M2 播放：ArtPlayer + hls.js 封装（Safari 原生回退）、进度记忆（服务端 + localStorage，≥95% 归零、15s 上报）
+- [x] M3 管理页：视频列表/编辑、上传页、分类管理、仪表盘真实统计
+- [x] M3 前台：首页列表/搜索/分类筛选、详情/剧集、播放页
 - [x] 类型全量、无 any、无组件内裸 axios
 
-后续：M1 分片上传（`upload.ts`、`UploadPanel.vue`、`utils/hash.ts`）、M2 HLS 播放（`play.ts`、`HlsPlayer.vue`）、M3 视频与分类管理页。
+后续（M4/P1）：播放地址签名、播放统计、多码率切换提示、Element Plus 按需引入减包。
