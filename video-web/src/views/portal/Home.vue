@@ -249,10 +249,15 @@ watch(
           <button v-if="keyword || categoryId > 0" class="q-btn q-btn--outline q-btn--sm" type="button" @click="clearFilter">
             查看全部视频
           </button>
-          <RouterLink v-else class="q-btn q-btn--outline q-btn--sm" to="/admin/upload">
-            <QIcon name="upload" :size="14" />
-            去上传
-          </RouterLink>
+          <button
+            v-else
+            class="q-btn q-btn--outline q-btn--sm"
+            type="button"
+            @click="loadVideos"
+          >
+            <QIcon name="refresh" :size="14" />
+            刷新看看
+          </button>
         </div>
       </div>
 

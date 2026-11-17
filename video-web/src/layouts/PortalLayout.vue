@@ -111,10 +111,6 @@ watch(
 
       <div class="portal-bar__actions">
         <ThemeToggle />
-        <RouterLink class="q-btn q-btn--ghost q-btn--sm portal-bar__admin" to="/admin/login">
-          <QIcon name="settings" :size="14" />
-          <span>管理后台</span>
-        </RouterLink>
       </div>
     </header>
 
@@ -157,7 +153,6 @@ watch(
         </div>
 
         <div class="portal-side__foot">
-          <RouterLink class="portal-side__foot-link" to="/admin/login">管理后台</RouterLink>
           <p class="portal-side__version">vidkeep · 自有内容视频站</p>
         </div>
       </aside>
@@ -198,13 +193,10 @@ watch(
         </section>
 
         <section class="rail-section rail-section--note">
-          <p class="rail-note__title">vidkeep</p>
+          <p class="rail-note__title">关于 vidkeep</p>
           <p class="rail-note__desc">
-            管理员在后台上传自有视频，系统自动转码为 HLS；支持断点续传、秒传与进度记忆。
+            这是一个自建视频站：管理员上传自有视频，系统自动转码为 HLS，访客可直接在线观看。
           </p>
-          <RouterLink class="q-btn q-btn--outline q-btn--sm rail-note__btn" to="/admin/login">
-            进入管理后台
-          </RouterLink>
         </section>
       </aside>
     </div>
@@ -305,10 +297,6 @@ watch(
   align-items: center;
 }
 
-.portal-bar__admin {
-  gap: 6px;
-}
-
 /* ---------- 三栏主体 ---------- */
 .portal-body {
   display: flex;
@@ -383,15 +371,6 @@ watch(
   gap: 4px;
   padding: 10px;
   margin-top: auto;
-}
-
-.portal-side__foot-link {
-  font-size: var(--q-fs-12);
-  color: var(--q-text-secondary);
-
-  &:hover {
-    color: var(--q-primary-text);
-  }
 }
 
 .portal-side__version {
@@ -531,11 +510,6 @@ watch(
   color: var(--q-text-tertiary);
 }
 
-.rail-note__btn {
-  align-self: flex-start;
-  margin-top: 4px;
-}
-
 @media (max-width: 1280px) {
   .portal-rail {
     display: none;
@@ -552,10 +526,6 @@ watch(
   .portal-bar {
     gap: 8px;
     padding: 0 8px;
-  }
-
-  .portal-bar__admin span {
-    display: none;
   }
 }
 </style>
