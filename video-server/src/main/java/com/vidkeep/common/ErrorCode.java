@@ -15,6 +15,9 @@ public enum ErrorCode {
     UNAUTHORIZED(2001, "未登录或登录已过期"),
     LOGIN_FAILED(2002, "账号或密码错误"),
     FORBIDDEN(2003, "无权限"),
+    SITE_PASSWORD_REQUIRED(2004, "需要访问口令"),
+    PLAY_TOKEN_INVALID(2005, "播放地址无效或已过期"),
+    SITE_PASSWORD_INCORRECT(2006, "访问口令错误"),
 
     NOT_FOUND(3001, "资源不存在"),
     STATUS_NOT_ALLOWED(3002, "资源状态不允许该操作"),

@@ -13,6 +13,7 @@ import com.vidkeep.module.video.entity.Video;
 import com.vidkeep.module.video.entity.VideoEpisode;
 import com.vidkeep.module.video.mapper.VideoEpisodeMapper;
 import com.vidkeep.module.video.mapper.VideoMapper;
+import com.vidkeep.security.PlayTokenService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -35,15 +36,18 @@ public class PlayService {
     private final VideoEpisodeMapper episodeMapper;
     private final PlayHistoryMapper playHistoryMapper;
     private final StorageService storageService;
+    private final PlayTokenService playTokenService;
 
     public PlayService(VideoMapper videoMapper,
                        VideoEpisodeMapper episodeMapper,
                        PlayHistoryMapper playHistoryMapper,
-                       StorageService storageService) {
+                       StorageService storageService,
+                       PlayTokenService playTokenService) {
         this.videoMapper = videoMapper;
         this.episodeMapper = episodeMapper;
         this.playHistoryMapper = playHistoryMapper;
         this.storageService = storageService;
+        this.playTokenService = playTokenService;
     }
 
     /**
@@ -65,7 +69,13 @@ public class PlayService {
             throw new BizException(ErrorCode.NOT_FOUND, "播放文件不存在");
         }
 
-        String url = "/hls/" + episodeId + "/master.m3u8";
+        // P1 F-15：播放次数自增（每次成功获取播放地址计一次）
+        videoMapper.update(null, Wrappers.<Video>lambdaUpdate()
+                .eq(Video::getId, videoId)
+                .setSql("view_count = view_count + 1"));
+
+        // P1 F-17：播放地址带 HMAC 签名与过期时间
+        String url = playTokenService.buildSignedUrl("/hls/" + episodeId + "/master.m3u8");
         int duration = episode.getDuration() == null ? 0 : episode.getDuration();
         int lastPosition = resolveLastPosition(deviceId, episodeId, duration);
         return new PlayInfoResponse("HLS", url, video.getCoverUrl(), episode.getDuration(), lastPosition);

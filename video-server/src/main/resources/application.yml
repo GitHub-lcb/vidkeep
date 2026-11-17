@@ -58,3 +58,17 @@ app:
     # 转码 Worker：dev/worker profile 为 true，prod 的 app 容器为 false（由 compose 的 worker 容器消费队列）
     worker-enabled: ${TRANSCODE_WORKER_ENABLED:true}
     hls-time-seconds: 6
+  play:
+    # P1 防盗链：播放地址签名密钥（未配置时回退 JWT_SECRET）
+    token-secret: ${PLAY_TOKEN_SECRET:${JWT_SECRET:}}
+    # 签名有效期（秒），文档建议 2 小时
+    token-expire-seconds: ${PLAY_TOKEN_EXPIRE_SECONDS:7200}
+    # m3u8 改写出的子列表/切片签名有效期（默认 12 小时，覆盖长视频连续播放）
+    segment-expire-seconds: ${PLAY_SEGMENT_EXPIRE_SECONDS:43200}
+  site:
+    # P1 站点访问口令（F-18）：为空表示不启用
+    access-password: ${SITE_ACCESS_PASSWORD:}
+    token-secret: ${SITE_TOKEN_SECRET:${JWT_SECRET:}}
+    # 口令通过后的 cookie 有效期（默认 30 天）
+    token-expire-seconds: ${SITE_TOKEN_EXPIRE_SECONDS:2592000}
+    cookie-name: ${SITE_COOKIE_NAME:vidkeep_site_token}

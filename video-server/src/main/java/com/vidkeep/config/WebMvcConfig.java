@@ -49,7 +49,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
     }
 
     /**
-     * 本地开发静态资源映射：/hls/** → DATA_DIR/hls/，/covers/** → DATA_DIR/covers/。
+     * 本地开发静态资源映射：/covers/** → DATA_DIR/covers/。
+     *
+     * <p>注意：/hls/** 不再走静态资源，由 {@code HlsStreamController} 统一做签名校验与 m3u8 改写（P1 防盗链）。</p>
      */
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
@@ -57,7 +59,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
         if (!baseUri.endsWith("/")) {
             baseUri = baseUri + "/";
         }
-        registry.addResourceHandler("/hls/**").addResourceLocations(baseUri + "hls/");
         registry.addResourceHandler("/covers/**").addResourceLocations(baseUri + "covers/");
     }
 }
