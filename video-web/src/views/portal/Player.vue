@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import QIcon from '@/components/QIcon.vue'
 import { getPlayInfo, getPublicVideoDetail, reportPlayHistory } from '@/api/play'
 import { isBizError } from '@/api/request'
 import HlsPlayer from '@/components/HlsPlayer.vue'
@@ -18,6 +19,7 @@ import type { PublicEpisodeItem, PublicVideoDetail } from '@/types/video'
  * - 续播位置 = max(服务端 lastPosition, 本地缓存)，服务端由后端保证 ≥95% 归零
  * - 播放中每 15 秒上报进度（文档 7.3.3），播完上报完整时长并清空本地进度
  * - 支持剧集切换与返回详情
+ * 视觉：Qoder 规范——深色播放舞台（16:9、圆角 12）+ 右侧剧集侧栏卡片，当前集主色浅底高亮。
  */
 
 const route = useRoute()
@@ -253,10 +255,15 @@ function episodeTitle(episode: PublicEpisodeItem): string {
   return episode.title !== null && episode.title.length > 0 ? episode.title : `第 ${episode.episodeNo} 集`
 }
 
-/** 转码状态标签样式 */
-function statusClass(status: TranscodeStatus): string {
-  if (status === 'FAILED') return 'is-failed'
-  return 'is-processing'
+/** 剧集序号：两位数等宽展示（01、02……） */
+function episodeIndex(episode: PublicEpisodeItem): string {
+  return String(episode.episodeNo).padStart(2, '0')
+}
+
+/** 剧集状态标签语义色（q-tag）：失败红、其余橙 */
+function statusTagClass(status: TranscodeStatus): string {
+  if (status === 'FAILED') return 'q-tag--danger'
+  return 'q-tag--warning'
 }
 
 watch([videoId, episodeId], () => {
@@ -272,73 +279,101 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="player-page">
-    <div class="player-page__bar">
-      <RouterLink class="player-page__back" :to="`/videos/${videoId}`">← 返回详情</RouterLink>
-      <span class="player-page__crumb">
-        {{ detail !== null ? detail.title : '播放' }}
-        <template v-if="currentEpisode !== null"> · {{ currentEpisodeTitle }}</template>
-      </span>
-    </div>
+  <div class="q-page q-fade-in player-page">
+    <header class="q-page-head">
+      <div class="q-page-head__main">
+        <RouterLink class="q-btn q-btn--ghost q-btn--sm player-page__back" :to="`/videos/${videoId}`">
+          <QIcon name="arrow-left" :size="14" />
+          返回详情
+        </RouterLink>
+        <h1 class="q-page-title player-page__title">{{ detail !== null ? detail.title : '播放' }}</h1>
+        <p class="q-page-desc">
+          <template v-if="currentEpisode !== null">
+            第 {{ currentEpisode.episodeNo }} 集 · {{ currentEpisodeTitle }}
+          </template>
+          <template v-else>正在准备播放信息</template>
+        </p>
+      </div>
+      <div class="q-page-actions">
+        <RouterLink class="q-btn q-btn--ghost q-btn--sm" to="/">
+          <QIcon name="home" :size="14" />
+          返回首页
+        </RouterLink>
+      </div>
+    </header>
 
     <!-- 加载态 -->
-    <section v-if="loading" class="player-loading" aria-busy="true" aria-label="播放信息加载中">
-      <div class="player-loading__screen" />
-      <div class="player-loading__line" />
-      <div class="player-loading__line player-loading__line--short" />
+    <section v-if="loading" class="q-card q-card--pad player-loading" aria-busy="true" aria-label="播放信息加载中">
+      <div class="q-skeleton player-loading__screen" />
+      <div class="q-skeleton player-loading__line" />
+      <div class="q-skeleton player-loading__line player-loading__line--short" />
     </section>
 
     <!-- 错误态（含播放地址过期 2005） -->
-    <section v-else-if="errorMessage !== ''" class="player-state">
-      <p class="player-state__icon" aria-hidden="true">!</p>
-      <h1 class="player-state__title">{{ playUrlExpired ? '播放地址已过期' : '无法播放' }}</h1>
-      <p class="player-state__desc">{{ errorMessage }}</p>
-      <div class="player-state__actions">
-        <button type="button" class="player-state__button" @click="load">
-          {{ playUrlExpired ? '重新获取播放地址' : '重新加载' }}
-        </button>
-        <RouterLink class="player-state__link" :to="`/videos/${videoId}`">返回详情</RouterLink>
-        <RouterLink class="player-state__link" to="/">返回首页</RouterLink>
+    <section v-else-if="errorMessage !== ''" class="q-card q-card--pad player-state" role="alert">
+      <div class="q-empty">
+        <div class="q-empty__stack">
+          <span class="q-empty__face"><QIcon name="alert" :size="18" /></span>
+        </div>
+        <p class="q-empty__title">{{ playUrlExpired ? '播放地址已过期' : '无法播放' }}</p>
+        <p class="q-empty__desc">{{ errorMessage }}</p>
+        <div class="q-empty__actions">
+          <button type="button" class="q-btn q-btn--primary" @click="load">
+            <QIcon name="refresh" :size="14" />
+            {{ playUrlExpired ? '重新获取播放地址' : '重新加载' }}
+          </button>
+          <RouterLink class="q-btn q-btn--ghost q-btn--sm" :to="`/videos/${videoId}`">返回详情</RouterLink>
+          <RouterLink class="q-btn q-btn--ghost q-btn--sm" to="/">返回首页</RouterLink>
+        </div>
       </div>
     </section>
 
     <!-- 转码未完成：显示提示而不是播放器 -->
-    <section v-else-if="showTranscodeNotice" class="player-state">
-      <p class="player-state__icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="26" height="26">
-          <circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.4" />
-          <path d="M12 7.6V12l3 1.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-        </svg>
-      </p>
-      <h1 class="player-state__title">{{ transcodeStatusText }}</h1>
-      <p class="player-state__desc">{{ transcodeNoticeText }}</p>
-      <div class="player-state__actions">
-        <button type="button" class="player-state__button" @click="load">刷新状态</button>
-        <RouterLink class="player-state__link" :to="`/videos/${videoId}`">返回详情</RouterLink>
+    <section v-else-if="showTranscodeNotice" class="q-card q-card--pad player-state">
+      <div class="q-empty">
+        <div class="q-empty__stack">
+          <span class="q-empty__face"><QIcon name="clock" :size="18" /></span>
+        </div>
+        <p class="q-empty__title">{{ transcodeStatusText }}</p>
+        <p class="q-empty__desc">{{ transcodeNoticeText }}</p>
+        <div class="q-empty__actions">
+          <button type="button" class="q-btn q-btn--primary" @click="load">
+            <QIcon name="refresh" :size="14" />
+            刷新状态
+          </button>
+          <RouterLink class="q-btn q-btn--ghost q-btn--sm" :to="`/videos/${videoId}`">返回详情</RouterLink>
+        </div>
       </div>
     </section>
 
     <!-- 播放器 + 剧集侧栏 -->
     <div v-else-if="playInfo !== null" class="player-layout">
       <section class="player-main">
-        <HlsPlayer
-          :key="playInfo.url"
-          :url="playInfo.url"
-          :poster="playInfo.poster"
-          :start-position="startPosition"
-          @timeupdate="handleTimeUpdate"
-          @ended="handleEnded"
-        />
+        <div class="player-stage">
+          <HlsPlayer
+            :key="playInfo.url"
+            :url="playInfo.url"
+            :poster="playInfo.poster"
+            :start-position="startPosition"
+            @timeupdate="handleTimeUpdate"
+            @ended="handleEnded"
+          />
+        </div>
 
         <div class="player-info">
-          <h1 class="player-info__title">{{ detail?.title }}</h1>
           <p class="player-info__meta">
-            <span v-if="detail !== null && detail.categoryName !== null" class="player-info__tag">
+            <span v-if="detail !== null && detail.categoryName !== null" class="q-tag q-tag--primary">
               {{ detail.categoryName }}
             </span>
             <span>{{ currentEpisodeTitle }}</span>
-            <span v-if="detail !== null" class="player-info__dot" aria-hidden="true">·</span>
-            <span v-if="detail !== null">共 {{ sortedEpisodes.length }} 集</span>
+            <template v-if="currentEpisode !== null && currentEpisode.duration !== null && currentEpisode.duration > 0">
+              <span class="player-info__dot" aria-hidden="true">·</span>
+              <span>{{ formatDuration(currentEpisode.duration) }}</span>
+            </template>
+            <template v-if="detail !== null">
+              <span class="player-info__dot" aria-hidden="true">·</span>
+              <span>共 {{ sortedEpisodes.length }} 集</span>
+            </template>
             <span class="player-info__dot" aria-hidden="true">·</span>
             <span>{{ detail?.viewCount ?? 0 }} 次播放</span>
           </p>
@@ -348,11 +383,11 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <aside class="player-aside">
-        <div class="player-aside__header">
+      <aside class="q-card q-card--pad player-aside">
+        <header class="player-aside__head">
           <h2 class="player-aside__title">剧集</h2>
-          <span class="player-aside__count">{{ sortedEpisodes.length }} 集</span>
-        </div>
+          <span class="q-caption">{{ sortedEpisodes.length }} 集</span>
+        </header>
 
         <div class="player-episode-list">
           <button
@@ -361,14 +396,16 @@ onBeforeUnmount(() => {
             type="button"
             class="player-episode"
             :class="{ 'is-active': episode.id === episodeId }"
+            :aria-current="episode.id === episodeId ? 'page' : undefined"
+            :aria-label="`第 ${episode.episodeNo} 集 ${episodeTitle(episode)}`"
             @click="switchEpisode(episode)"
           >
-            <span class="player-episode__no">第 {{ episode.episodeNo }} 集</span>
+            <span class="player-episode__no q-mono">{{ episodeIndex(episode) }}</span>
             <span class="player-episode__title" :title="episodeTitle(episode)">{{ episodeTitle(episode) }}</span>
             <span
               v-if="episode.transcodeStatus !== 'DONE'"
-              class="player-episode__status"
-              :class="statusClass(episode.transcodeStatus)"
+              class="q-tag"
+              :class="statusTagClass(episode.transcodeStatus)"
             >
               {{ TRANSCODE_STATUS_TEXT[episode.transcodeStatus] }}
             </span>
@@ -378,7 +415,9 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <RouterLink class="player-aside__detail" :to="`/videos/${videoId}`">返回详情页</RouterLink>
+        <RouterLink class="q-btn q-btn--outline q-btn--sm q-btn--block player-aside__detail" :to="`/videos/${videoId}`">
+          返回详情页
+        </RouterLink>
       </aside>
     </div>
   </div>
@@ -388,155 +427,60 @@ onBeforeUnmount(() => {
 @use '../../styles/variables' as *;
 
 .player-page {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 16px 24px 64px;
-
-  @include vk-mobile {
-    padding: 12px 14px 40px;
-  }
+  padding-top: var(--q-sp-4);
 }
 
-.player-page__bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 4px 0 16px;
-}
-
+/* ghost 按钮自带 8px 内边距，负左边距让文字对齐内容左缘 */
 .player-page__back {
-  flex-shrink: 0;
-  font-size: 13px;
-  color: $vk-text-muted;
-  transition: color 0.18s ease;
-
-  &:hover {
-    color: $vk-text;
-  }
+  margin-left: -8px;
 }
 
-.player-page__crumb {
-  overflow: hidden;
-  font-size: 12.5px;
-  color: #5f6b7d;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.player-page__title {
+  margin-top: 6px;
+  word-break: break-word;
 }
 
 /* ---------- 加载骨架 ---------- */
+.player-loading {
+  margin-top: var(--q-sp-4);
+}
+
 .player-loading__screen {
   width: 100%;
   aspect-ratio: 16 / 9;
-  background: linear-gradient(100deg, #0f1621 30%, #182131 50%, #0f1621 70%);
-  background-size: 220% 100%;
-  border-radius: 14px;
-  animation: player-shimmer 1.4s ease-in-out infinite;
+  background: var(--q-player-bg);
+  border-radius: var(--q-r-xl);
 }
 
 .player-loading__line {
   width: 42%;
-  height: 14px;
-  margin-top: 18px;
-  background: linear-gradient(100deg, #131b28 30%, #1b2536 50%, #131b28 70%);
-  background-size: 220% 100%;
-  border-radius: 7px;
-  animation: player-shimmer 1.4s ease-in-out infinite;
+  height: 12px;
+  margin-top: var(--q-sp-4);
+  border-radius: var(--q-r-sm);
 }
 
 .player-loading__line--short {
   width: 26%;
   height: 10px;
-  margin-top: 10px;
+  margin-top: var(--q-sp-2);
 }
 
-@keyframes player-shimmer {
-  0% {
-    background-position: 120% 0;
-  }
-
-  100% {
-    background-position: -120% 0;
-  }
-}
-
-/* ---------- 状态页（错误/转码提示） ---------- */
+/* ---------- 状态块（错误 / 转码提示） ---------- */
 .player-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 76px 20px 82px;
-  text-align: center;
+  margin-top: var(--q-sp-4);
 }
 
-.player-state__icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 58px;
-  height: 58px;
-  margin-bottom: 12px;
-  font-size: 22px;
-  color: #7d8ca0;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 16px;
-}
-
-.player-state__title {
-  font-size: 17px;
-  font-weight: 600;
-  color: $vk-text;
-}
-
-.player-state__desc {
-  max-width: 28em;
-  margin-top: 8px;
-  font-size: 13px;
-  line-height: 1.7;
-  color: $vk-text-muted;
-}
-
-.player-state__actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 14px;
-  margin-top: 20px;
-}
-
-.player-state__button {
-  padding: 8px 18px;
-  font-size: 13px;
-  color: $vk-text;
-  cursor: pointer;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.09);
-  }
-}
-
-.player-state__link {
-  font-size: 13px;
-  color: $vk-text-muted;
-
-  &:hover {
-    color: $vk-text;
-  }
-}
-
-/* ---------- 播放器 + 侧栏布局 ---------- */
+/* ---------- 播放区 + 剧集侧栏 ---------- */
 .player-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 296px;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--q-sp-5);
   align-items: start;
-  gap: 20px;
+  margin-top: var(--q-sp-4);
 
-  @include vk-tablet {
+  @include q-tablet {
     grid-template-columns: minmax(0, 1fr);
+    gap: var(--q-sp-4);
   }
 }
 
@@ -544,49 +488,48 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.player-stage {
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--q-player-bg);
+  border-radius: var(--q-r-xl);
+}
+
 .player-info {
-  padding: 18px 2px 0;
+  padding-top: var(--q-sp-4);
 }
 
 .player-info__title {
-  font-size: clamp(18px, 2.6vw, 24px);
-  font-weight: 700;
-  line-height: 1.35;
-  color: #f3f6fb;
+  font-size: var(--q-fs-16);
+  font-weight: 600;
+  line-height: var(--q-lh-24);
+  color: var(--q-text);
+  letter-spacing: -0.01em;
   word-break: break-word;
 }
 
 .player-info__meta {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
   gap: 6px 8px;
-  margin-top: 10px;
-  font-size: 12.5px;
-  color: $vk-text-muted;
-}
-
-.player-info__tag {
-  margin-right: 2px;
-  padding: 2px 8px;
-  font-size: 11.5px;
-  color: #b9c8dd;
-  background: rgba(91, 141, 239, 0.12);
-  border: 1px solid rgba(91, 141, 239, 0.36);
-  border-radius: 999px;
+  align-items: center;
+  margin-top: var(--q-sp-2);
+  font-size: var(--q-fs-12);
+  line-height: var(--q-lh-18);
+  color: var(--q-text-tertiary);
 }
 
 .player-info__dot {
-  color: rgba(139, 151, 168, 0.55);
+  color: var(--q-text-quaternary);
 }
 
 .player-info__desc {
   display: -webkit-box;
   overflow: hidden;
-  margin-top: 12px;
-  font-size: 13px;
-  line-height: 1.75;
-  color: #a6b2c3;
+  margin-top: 10px;
+  font-size: var(--q-fs-13);
+  line-height: var(--q-lh-20);
+  color: var(--q-text-secondary);
   word-break: break-word;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -595,145 +538,129 @@ onBeforeUnmount(() => {
 
 /* ---------- 剧集侧栏 ---------- */
 .player-aside {
-  padding: 16px 14px 14px;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 12px;
-
-  @include vk-tablet {
-    margin-top: 8px;
-  }
+  display: flex;
+  flex-direction: column;
 }
 
-.player-aside__header {
+.player-aside__head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  padding: 0 4px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--q-border-quaternary);
 }
 
 .player-aside__title {
-  font-size: 14px;
+  font-size: var(--q-fs-13);
   font-weight: 600;
-  color: $vk-text;
-}
-
-.player-aside__count {
-  font-size: 12px;
-  color: $vk-text-muted;
+  line-height: var(--q-lh-18);
+  color: var(--q-text);
 }
 
 .player-episode-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  max-height: 520px;
-  margin-top: 8px;
+  gap: 2px;
+  max-height: 480px;
+  margin-top: var(--q-sp-2);
   overflow-y: auto;
-
-  @include vk-tablet {
-    max-height: 260px;
-  }
-
-  @include vk-mobile {
-    max-height: 220px;
-  }
+  scrollbar-width: thin;
+  scrollbar-color: var(--q-border-secondary) transparent;
 
   &::-webkit-scrollbar {
-    width: 4px;
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
   }
 
   &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.14);
-    border-radius: 2px;
+    background: var(--q-border-secondary);
+    border-radius: var(--q-r-full);
+  }
+
+  @include q-tablet {
+    max-height: 300px;
+  }
+
+  @include q-mobile {
+    max-height: 260px;
   }
 }
 
 .player-episode {
   display: flex;
+  gap: var(--q-sp-2);
   align-items: center;
-  gap: 8px;
-  padding: 9px 10px;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
   text-align: left;
   cursor: pointer;
   background: transparent;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  transition:
-    background-color 0.16s ease,
-    border-color 0.16s ease;
+  border: none;
+  border-radius: var(--q-r-lg);
+  transition: background-color var(--q-dur-fast) var(--q-ease), color var(--q-dur-fast) var(--q-ease);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.08);
+    background: var(--q-fill-tertiary);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--q-primary-border);
   }
 
   &.is-active {
-    background: rgba(91, 141, 239, 0.13);
-    border-color: rgba(91, 141, 239, 0.5);
+    background: var(--q-primary-bg);
+
+    .player-episode__no,
+    .player-episode__title {
+      color: var(--q-primary-text);
+    }
   }
 }
 
 .player-episode__no {
-  flex-shrink: 0;
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
-  color: #93a3ba;
+  flex: none;
+  width: 18px;
+  font-size: var(--q-fs-12);
+  line-height: var(--q-lh-16);
+  color: var(--q-text-tertiary);
 }
 
 .player-episode__title {
   flex: 1;
+  min-width: 0;
   overflow: hidden;
-  font-size: 12.5px;
-  color: $vk-text;
+  font-size: var(--q-fs-13);
+  line-height: var(--q-lh-18);
+  color: var(--q-text);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .player-episode__duration {
-  flex-shrink: 0;
-  font-size: 11px;
+  flex: none;
+  font-size: var(--q-fs-11);
   font-variant-numeric: tabular-nums;
-  color: $vk-text-muted;
-}
-
-.player-episode__status {
-  flex-shrink: 0;
-  padding: 1px 6px;
-  font-size: 10.5px;
-  border-radius: 999px;
-
-  &.is-processing {
-    color: #e6c07a;
-    background: rgba(230, 192, 122, 0.1);
-    border: 1px solid rgba(230, 192, 122, 0.28);
-  }
-
-  &.is-failed {
-    color: #f08181;
-    background: rgba(240, 129, 129, 0.1);
-    border: 1px solid rgba(240, 129, 129, 0.28);
-  }
+  line-height: var(--q-lh-16);
+  color: var(--q-text-tertiary);
 }
 
 .player-aside__detail {
-  display: block;
-  margin-top: 12px;
-  padding: 9px 0;
-  font-size: 12.5px;
-  text-align: center;
-  color: $vk-text-muted;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 8px;
-  transition:
-    color 0.16s ease,
-    border-color 0.16s ease;
+  margin-top: var(--q-sp-3);
+}
 
-  &:hover {
-    color: $vk-text;
-    border-color: rgba(255, 255, 255, 0.2);
+@include q-mobile {
+  .player-page {
+    padding-top: var(--q-sp-2);
+  }
+
+  .player-info__title {
+    font-size: var(--q-fs-14);
+    line-height: var(--q-lh-22);
   }
 }
 </style>

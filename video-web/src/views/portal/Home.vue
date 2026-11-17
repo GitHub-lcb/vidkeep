@@ -1,16 +1,22 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { listPublicCategories, listPublicVideos } from '@/api/play'
-import { isBizError } from '@/api/request'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import QIcon from '@/components/QIcon.vue'
 import VideoCard from '@/components/VideoCard.vue'
+import { listCategories } from '@/api/category'
+import { listPublicVideos } from '@/api/play'
+import { isBizError } from '@/api/request'
 import type { CategoryItem } from '@/types/category'
 import type { PublicVideoItem } from '@/types/video'
 
-/** 前台首页：分类筛选 + 标题搜索 + 视频网格分页（文档 6.2 公开列表接口） */
-
-/** 每页数量：桌面 4 列 × 3 行 */
+/**
+ * 前台首页：最近更新（featured + 列表）+ 分类筛选 + 搜索 + 分页。
+ * 视觉：Qoder 规范——页面标题 18/600、工具栏 28px 控件、卡片网格、克制留白。
+ */
 const PAGE_SIZE = 12
+
+const route = useRoute()
+const router = useRouter()
 
 const categories = ref<CategoryItem[]>([])
 const videos = ref<PublicVideoItem[]>([])
@@ -19,545 +25,611 @@ const page = ref(1)
 const loading = ref(false)
 const errorMessage = ref('')
 
-/** 当前生效的筛选条件（keyword 只在回车/点搜索后生效，避免输入每个字符都请求） */
-const activeCategoryId = ref<number | null>(null)
-const keyword = ref('')
-const keywordInput = ref('')
+const keyword = computed<string>(() =>
+  typeof route.query.keyword === 'string' ? route.query.keyword : '',
+)
+const categoryId = computed<number>(() => {
+  const parsed = Number(route.query.categoryId)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+})
+const activeCategoryName = computed<string>(() => {
+  if (categoryId.value === 0) return '视频库'
+  return categories.value.find((item) => item.id === categoryId.value)?.name ?? '分类'
+})
+const totalPages = computed<number>(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)))
+const showFeatured = computed<boolean>(
+  () => !loading.value && !keyword.value && categoryId.value === 0 && page.value === 1 && videos.value.length > 0,
+)
+const featured = computed<PublicVideoItem | null>(() => (showFeatured.value ? videos.value[0] : null))
+const gridVideos = computed<PublicVideoItem[]>(() =>
+  showFeatured.value ? videos.value.slice(1) : videos.value,
+)
 
-/** 请求序号：筛选连续切换时丢弃过期响应，防止旧数据覆盖新结果 */
-let requestSeq = 0
-
-const totalPages = computed((): number => Math.max(1, Math.ceil(total.value / PAGE_SIZE)))
-const hasFilter = computed((): boolean => keyword.value.length > 0 || activeCategoryId.value !== null)
-
-/** 加载分类；失败不阻塞视频列表，只是没有分类 chip */
-async function loadCategories(): Promise<void> {
-  try {
-    categories.value = await listPublicCategories()
-  } catch {
-    categories.value = []
-  }
+function errorText(error: unknown, fallback: string): string {
+  return isBizError(error) ? error.message : fallback
 }
 
-/** 加载视频列表（分页 + 可选筛选） */
 async function loadVideos(): Promise<void> {
-  const seq = ++requestSeq
   loading.value = true
   errorMessage.value = ''
-
   try {
     const result = await listPublicVideos({
       page: page.value,
       size: PAGE_SIZE,
-      keyword: keyword.value.length > 0 ? keyword.value : undefined,
-      categoryId: activeCategoryId.value ?? undefined,
+      keyword: keyword.value || undefined,
+      categoryId: categoryId.value || undefined,
     })
-    if (seq !== requestSeq) return
     videos.value = result.records
     total.value = result.total
   } catch (error) {
-    if (seq !== requestSeq) return
     videos.value = []
     total.value = 0
-    errorMessage.value = isBizError(error) ? error.message : '视频列表加载失败，请稍后重试'
-    ElMessage.error(errorMessage.value)
+    errorMessage.value = errorText(error, '加载视频失败，请稍后重试')
   } finally {
-    // 只有最后一次请求负责关闭 loading
-    if (seq === requestSeq) loading.value = false
+    loading.value = false
   }
 }
 
-/** 回车或点击搜索：应用关键字并从第一页重新加载 */
-function handleSearch(): void {
-  keyword.value = keywordInput.value.trim()
-  page.value = 1
-  void loadVideos()
+function goCategory(id: number): void {
+  router.push({ path: '/', query: id > 0 ? { categoryId: String(id) } : {} })
 }
 
-/** 切换分类（null 表示全部） */
-function handleCategorySelect(categoryId: number | null): void {
-  if (activeCategoryId.value === categoryId) return
-  activeCategoryId.value = categoryId
-  page.value = 1
-  void loadVideos()
+function clearFilter(): void {
+  router.push({ path: '/' })
 }
 
-/** 清除全部筛选条件 */
-function clearFilters(): void {
-  keyword.value = ''
-  keywordInput.value = ''
-  activeCategoryId.value = null
-  page.value = 1
-  void loadVideos()
-}
-
-/** 翻页：page 从 1 开始，页码非法时忽略 */
 function goPage(target: number): void {
   if (target < 1 || target > totalPages.value || target === page.value) return
   page.value = target
   void loadVideos()
 }
 
-onMounted(() => {
-  void loadCategories()
+onMounted(async () => {
   void loadVideos()
+  try {
+    categories.value = await listCategories()
+  } catch {
+    categories.value = []
+  }
 })
+
+watch(
+  () => [route.query.keyword, route.query.categoryId],
+  () => {
+    page.value = 1
+    void loadVideos()
+  },
+)
 </script>
 
 <template>
-  <div class="home">
-    <section class="home-hero">
-      <p class="home-hero__eyebrow">self-hosted video</p>
-      <h1 class="home-hero__title">vidkeep</h1>
-      <p class="home-hero__desc">自有内容，安静地看。</p>
-    </section>
+  <div class="home q-fade-in">
+    <header class="home-head">
+      <div>
+        <p class="home-eyebrow">VIDKEEP LIBRARY</p>
+        <h1 class="home-title">{{ keyword ? '搜索结果' : activeCategoryName }}</h1>
+        <p class="home-desc">
+          <template v-if="keyword">关键字「{{ keyword }}」共 {{ total }} 个视频</template>
+          <template v-else-if="categoryId > 0">共 {{ total }} 个视频</template>
+          <template v-else>管理员上传的自有内容，自动转码为 HLS 后在此播放。</template>
+        </p>
+      </div>
+      <div class="home-head__aside">
+        <span class="home-count">{{ total }} 个视频</span>
+      </div>
+    </header>
 
-    <section class="home-toolbar">
-      <div class="home-chips" role="group" aria-label="按分类筛选">
+    <div class="home-toolbar">
+      <div class="home-chips" role="tablist" aria-label="分类筛选">
         <button
           type="button"
           class="home-chip"
-          :class="{ 'is-active': activeCategoryId === null }"
-          @click="handleCategorySelect(null)"
+          :class="{ 'is-active': categoryId === 0 }"
+          @click="goCategory(0)"
         >
           全部
         </button>
         <button
-          v-for="item in categories"
-          :key="item.id"
+          v-for="category in categories"
+          :key="category.id"
           type="button"
           class="home-chip"
-          :class="{ 'is-active': activeCategoryId === item.id }"
-          @click="handleCategorySelect(item.id)"
+          :class="{ 'is-active': categoryId === category.id }"
+          @click="goCategory(category.id)"
         >
-          {{ item.name }}
+          {{ category.name }}
         </button>
       </div>
 
-      <form class="home-search" role="search" @submit.prevent="handleSearch">
-        <input
-          v-model="keywordInput"
-          class="home-search__input"
-          type="search"
-          placeholder="搜索视频标题"
-          aria-label="搜索视频标题"
-        />
-        <button class="home-search__button" type="submit">搜索</button>
-      </form>
-    </section>
-
-    <div class="home-result">
-      <p v-if="!loading && errorMessage === ''" class="home-result__text">
-        {{ hasFilter ? `筛选到 ${total} 个视频` : `共 ${total} 个视频` }}
-      </p>
-      <button v-if="hasFilter && !loading" type="button" class="home-result__clear" @click="clearFilters">
+      <button
+        v-if="keyword || categoryId > 0"
+        type="button"
+        class="q-btn q-btn--text q-btn--sm"
+        @click="clearFilter"
+      >
         清除筛选
       </button>
     </div>
 
-    <!-- 加载态：骨架卡片，避免列表高度跳变 -->
-    <section v-if="loading" class="home-grid" aria-busy="true" aria-label="视频加载中">
-      <div v-for="index in 8" :key="index" class="home-skeleton">
-        <div class="home-skeleton__cover" />
-        <div class="home-skeleton__line home-skeleton__line--title" />
-        <div class="home-skeleton__line home-skeleton__line--meta" />
+    <div v-if="errorMessage" class="home-error" role="alert">
+      <QIcon name="alert" :size="16" />
+      <span>{{ errorMessage }}</span>
+      <button class="q-btn q-btn--outline q-btn--sm" type="button" @click="loadVideos">
+        <QIcon name="refresh" :size="13" />
+        重试
+      </button>
+    </div>
+
+    <!-- 首屏最近更新：大卡 + 紧凑列表 -->
+    <section v-if="featured" class="home-featured">
+      <RouterLink class="feature" :to="`/videos/${featured.id}`">
+        <span class="feature__cover">
+          <img
+            v-if="featured.coverUrl"
+            class="feature__img"
+            :src="featured.coverUrl"
+            :alt="featured.title"
+          />
+          <span v-else class="feature__placeholder">
+            <QIcon name="film" :size="28" />
+          </span>
+          <span class="feature__play" aria-hidden="true">
+            <QIcon name="play" :size="18" />
+          </span>
+        </span>
+        <span class="feature__body">
+          <span class="feature__eyebrow">最近添加</span>
+          <span class="feature__title">{{ featured.title }}</span>
+          <span class="feature__meta">
+            {{ featured.categoryName || '未分类' }} · {{ featured.episodeCount }} 集
+          </span>
+        </span>
+      </RouterLink>
+
+      <div class="home-recent">
+        <p class="home-recent__label">最近更新</p>
+        <ul class="home-recent__list">
+          <li v-for="video in videos.slice(1, 5)" :key="video.id">
+            <RouterLink class="recent-row" :to="`/videos/${video.id}`">
+              <img
+                v-if="video.coverUrl"
+                class="recent-row__cover"
+                :src="video.coverUrl"
+                alt=""
+                loading="lazy"
+              />
+              <span v-else class="recent-row__cover recent-row__cover--empty">
+                <QIcon name="film" :size="14" />
+              </span>
+              <span class="recent-row__body">
+                <span class="recent-row__title">{{ video.title }}</span>
+                <span class="recent-row__meta">{{ video.episodeCount }} 集 · {{ video.categoryName || '未分类' }}</span>
+              </span>
+            </RouterLink>
+          </li>
+        </ul>
       </div>
     </section>
 
-    <!-- 错误态：可重试 -->
-    <section v-else-if="errorMessage !== ''" class="home-state">
-      <p class="home-state__icon" aria-hidden="true">!</p>
-      <h2 class="home-state__title">视频加载失败</h2>
-      <p class="home-state__desc">{{ errorMessage }}</p>
-      <button type="button" class="home-state__action" @click="loadVideos">重新加载</button>
-    </section>
-
-    <!-- 空态 -->
-    <section v-else-if="videos.length === 0" class="home-state">
-      <p class="home-state__icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="26" height="26">
-          <path
-            d="M4 6.5A2.5 2.5 0 016.5 4h11A2.5 2.5 0 0120 6.5v11a2.5 2.5 0 01-2.5 2.5h-11A2.5 2.5 0 014 17.5v-11z"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.4"
-          />
-          <path d="M10 9l5 3-5 3z" fill="currentColor" />
-        </svg>
-      </p>
-      <h2 class="home-state__title">暂无视频</h2>
-      <p class="home-state__desc">
-        {{ hasFilter ? '没有匹配的视频，换个关键字或分类试试。' : '站长还没有发布视频，稍后再来看看吧。' }}
-      </p>
-      <button v-if="hasFilter" type="button" class="home-state__action" @click="clearFilters">
-        查看全部视频
-      </button>
-    </section>
-
     <!-- 视频网格 -->
-    <section v-else class="home-grid" aria-label="视频列表">
-      <VideoCard v-for="video in videos" :key="video.id" :video="video" />
-    </section>
+    <section class="home-section">
+      <header class="home-section__head">
+        <h2 class="home-section__title">全部视频</h2>
+        <button
+          v-if="keyword || categoryId > 0"
+          type="button"
+          class="q-btn q-btn--text q-btn--sm"
+          @click="clearFilter"
+        >
+          清除筛选
+        </button>
+      </header>
 
-    <!-- 分页：上一页 / 页码 / 下一页 -->
-    <nav v-if="!loading && errorMessage === '' && totalPages > 1" class="home-pagination" aria-label="分页">
-      <button
-        type="button"
-        class="home-pagination__button"
-        :disabled="page <= 1"
-        @click="goPage(page - 1)"
-      >
-        上一页
-      </button>
-      <span class="home-pagination__info">{{ page }} / {{ totalPages }}</span>
-      <button
-        type="button"
-        class="home-pagination__button"
-        :disabled="page >= totalPages"
-        @click="goPage(page + 1)"
-      >
-        下一页
-      </button>
-    </nav>
+      <div v-if="loading" class="home-grid">
+        <div v-for="index in 8" :key="index" class="home-skeleton">
+          <div class="q-skeleton home-skeleton__cover" />
+          <div class="q-skeleton home-skeleton__line" />
+          <div class="q-skeleton home-skeleton__line home-skeleton__line--short" />
+        </div>
+      </div>
+
+      <div v-else-if="gridVideos.length > 0" class="home-grid">
+        <VideoCard v-for="video in gridVideos" :key="video.id" :video="video" />
+      </div>
+
+      <div v-else class="q-empty">
+        <div class="q-empty__stack">
+          <span class="q-empty__face"><QIcon name="film" :size="18" /></span>
+        </div>
+        <p class="q-empty__title">{{ keyword ? '没有找到匹配的视频' : '视频库还是空的' }}</p>
+        <p class="q-empty__desc">
+          {{ keyword ? '试试更换关键字，或清除筛选查看全部视频。' : '管理员可以在后台上传第一个视频。' }}
+        </p>
+        <div class="q-empty__actions">
+          <button v-if="keyword || categoryId > 0" class="q-btn q-btn--outline q-btn--sm" type="button" @click="clearFilter">
+            查看全部视频
+          </button>
+          <RouterLink v-else class="q-btn q-btn--outline q-btn--sm" to="/admin/upload">
+            <QIcon name="upload" :size="14" />
+            去上传
+          </RouterLink>
+        </div>
+      </div>
+
+      <div v-if="!loading && totalPages > 1" class="home-pager">
+        <button
+          type="button"
+          class="q-btn q-btn--outline q-btn--sm"
+          :disabled="page <= 1"
+          @click="goPage(page - 1)"
+        >
+          <QIcon name="chevron-left" :size="14" />
+          上一页
+        </button>
+        <span class="home-pager__text">{{ page }} / {{ totalPages }}</span>
+        <button
+          type="button"
+          class="q-btn q-btn--outline q-btn--sm"
+          :disabled="page >= totalPages"
+          @click="goPage(page + 1)"
+        >
+          下一页
+          <QIcon name="chevron-right" :size="14" />
+        </button>
+      </div>
+    </section>
   </div>
 </template>
 
 <style scoped lang="scss">
-@use '../../styles/variables' as *;
-
 .home {
-  max-width: 1120px;
+  width: 100%;
+  max-width: 1180px;
+  padding: 28px 28px 56px;
   margin: 0 auto;
-  padding: 0 24px 72px;
-
-  @include vk-mobile {
-    padding: 0 16px 48px;
-  }
 }
 
-.home-hero {
-  padding: 64px 0 30px;
-
-  @include vk-tablet {
-    padding: 48px 0 24px;
-  }
-
-  @include vk-mobile {
-    padding: 36px 0 20px;
-  }
+.home-head {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  justify-content: space-between;
 }
 
-.home-hero__eyebrow {
-  font-size: 11px;
+.home-eyebrow {
+  font-size: var(--q-fs-10);
   font-weight: 500;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  color: $vk-text-muted;
+  letter-spacing: 0.14em;
+  color: var(--q-text-quaternary);
 }
 
-.home-hero__title {
-  margin-top: 14px;
-  font-size: clamp(38px, 6vw, 64px);
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.03em;
-  background: linear-gradient(180deg, #ffffff 12%, #9fb0c6 92%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+.home-title {
+  margin-top: 6px;
+  font-size: var(--q-fs-24);
+  font-weight: 600;
+  line-height: var(--q-lh-32);
+  letter-spacing: -0.02em;
 }
 
-.home-hero__desc {
-  margin-top: 14px;
-  font-size: 14px;
-  color: #a6b2c3;
+.home-desc {
+  margin-top: 4px;
+  font-size: var(--q-fs-12);
+  line-height: var(--q-lh-18);
+  color: var(--q-text-tertiary);
 }
 
+.home-count {
+  font-size: var(--q-fs-12);
+  color: var(--q-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 工具栏 */
 .home-toolbar {
   display: flex;
+  gap: 12px;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 18px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-
-  @include vk-tablet {
-    flex-direction: column;
-    align-items: stretch;
-  }
+  padding: 14px 0;
+  margin-top: 8px;
+  border-bottom: 1px solid var(--q-border-quaternary);
 }
 
 .home-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px;
+  min-width: 0;
 }
 
 .home-chip {
-  padding: 6px 13px;
-  font-size: 12.5px;
-  color: $vk-text-muted;
+  height: 26px;
+  padding: 0 10px;
+  font-size: var(--q-fs-12);
+  color: var(--q-text-secondary);
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-  transition:
-    color 0.18s ease,
-    border-color 0.18s ease,
-    background-color 0.18s ease;
+  background: transparent;
+  border: none;
+  border-radius: var(--q-r-lg);
+  transition: color var(--q-dur-fast) var(--q-ease), background-color var(--q-dur-fast) var(--q-ease);
 
   &:hover {
-    color: $vk-text;
-    border-color: rgba(255, 255, 255, 0.2);
+    color: var(--q-text);
+    background: var(--q-fill-tertiary);
   }
 
   &.is-active {
-    color: #ffffff;
-    background: rgba(91, 141, 239, 0.16);
-    border-color: rgba(91, 141, 239, 0.62);
-    box-shadow: inset 0 0 0 1px rgba(91, 141, 239, 0.18);
+    font-weight: 500;
+    color: var(--q-primary-text);
+    background: var(--q-primary-bg);
   }
 }
 
 .home-search {
   display: flex;
-  flex-shrink: 0;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+}
+
+.home-error {
+  display: flex;
   gap: 8px;
-
-  @include vk-tablet {
-    width: 100%;
-  }
+  align-items: center;
+  padding: 10px 12px;
+  margin-top: 16px;
+  font-size: var(--q-fs-12);
+  color: var(--q-error);
+  background: var(--q-error-bg);
+  border-radius: var(--q-r-lg);
 }
 
-.home-search__input {
-  width: 220px;
-  height: 36px;
-  padding: 0 12px;
-  font-size: 13px;
-  color: $vk-text;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  transition:
-    border-color 0.18s ease,
-    background-color 0.18s ease;
-
-  &::placeholder {
-    color: #5f6b7d;
-  }
-
-  &:focus {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(91, 141, 239, 0.62);
-    outline: none;
-  }
-
-  @include vk-tablet {
-    flex: 1;
-    width: auto;
-  }
+/* 最近更新 */
+.home-featured {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 24px;
+  margin-top: 20px;
 }
 
-.home-search__button {
+.feature {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.feature__cover {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  background: var(--q-fill-tertiary);
+  border-radius: var(--q-r-xl);
+  box-shadow: 0 0 0 1px var(--q-border-quaternary) inset;
+}
+
+.feature__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--q-dur-slow) var(--q-ease);
+}
+
+.feature__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--q-text-quaternary);
+}
+
+.feature__play {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
   height: 36px;
-  padding: 0 16px;
-  font-size: 13px;
-  color: #ffffff;
-  cursor: pointer;
-  background: linear-gradient(180deg, #5f8ff2, #4a76d6);
-  border: none;
-  border-radius: 8px;
-  transition: background 0.18s ease;
+  color: #fdfdfd;
+  background: rgba(8, 8, 7, 0.6);
+  border-radius: 50%;
+  backdrop-filter: blur(4px);
+  transition: transform var(--q-dur-fast) var(--q-ease);
+}
+
+.feature:hover .feature__img {
+  transform: scale(1.015);
+}
+
+.feature:hover .feature__play {
+  transform: scale(1.06);
+}
+
+.feature__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 12px;
+}
+
+.feature__eyebrow {
+  font-size: var(--q-fs-11);
+  color: var(--q-primary-text);
+}
+
+.feature__title {
+  font-size: var(--q-fs-16);
+  font-weight: 600;
+  line-height: var(--q-lh-24);
+  letter-spacing: -0.01em;
+  color: var(--q-text);
+}
+
+.feature__meta {
+  font-size: var(--q-fs-12);
+  color: var(--q-text-tertiary);
+}
+
+.home-recent {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.home-recent__label {
+  padding-bottom: 8px;
+  font-size: var(--q-fs-12);
+  font-weight: 500;
+  color: var(--q-text-tertiary);
+  border-bottom: 1px solid var(--q-border-quaternary);
+}
+
+.home-recent__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.recent-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 6px;
+  border-radius: var(--q-r-lg);
+  transition: background-color var(--q-dur-fast) var(--q-ease);
 
   &:hover {
-    background: linear-gradient(180deg, #6d9af5, #4f7cdd);
+    background: var(--q-fill-tertiary);
   }
 }
 
-.home-result {
+.recent-row__cover {
+  flex: none;
+  width: 72px;
+  height: 40px;
+  object-fit: cover;
+  background: var(--q-fill-tertiary);
+  border-radius: var(--q-r-md);
+}
+
+.recent-row__cover--empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--q-text-quaternary);
+}
+
+.recent-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.recent-row__title {
+  overflow: hidden;
+  font-size: var(--q-fs-12);
+  font-weight: 500;
+  color: var(--q-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-row__meta {
+  font-size: var(--q-fs-11);
+  color: var(--q-text-tertiary);
+}
+
+/* 网格 */
+.home-section {
+  margin-top: 28px;
+}
+
+.home-section__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 18px 0 2px;
+  padding-bottom: 10px;
 }
 
-.home-result__text {
-  font-size: 12.5px;
-  color: $vk-text-muted;
-}
-
-.home-result__clear {
-  font-size: 12.5px;
-  color: $vk-text-muted;
-  cursor: pointer;
-  background: none;
-  border: none;
-  transition: color 0.18s ease;
-
-  &:hover {
-    color: $vk-text;
-  }
+.home-section__title {
+  font-size: var(--q-fs-14);
+  font-weight: 600;
+  color: var(--q-text);
 }
 
 .home-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 20px;
-  margin-top: 16px;
-
-  @include vk-tablet {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
-  }
-
-  @include vk-mobile {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 13px;
-  }
-
-  @media (max-width: 380px) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* 骨架屏：渐变扫光，避免纯灰块 */
-.home-skeleton {
-  overflow: hidden;
-  padding-bottom: 14px;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px 16px;
 }
 
 .home-skeleton__cover {
-  width: 100%;
   aspect-ratio: 16 / 9;
-  background: linear-gradient(100deg, #131b28 30%, #1b2536 50%, #131b28 70%);
-  background-size: 220% 100%;
-  animation: home-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--q-r-surface);
 }
 
 .home-skeleton__line {
   height: 10px;
-  margin: 12px 13px 0;
-  background: linear-gradient(100deg, #131b28 30%, #1b2536 50%, #131b28 70%);
-  background-size: 220% 100%;
-  border-radius: 5px;
-  animation: home-shimmer 1.4s ease-in-out infinite;
+  margin-top: 10px;
+  border-radius: var(--q-r-sm);
 }
 
-.home-skeleton__line--title {
-  width: 72%;
+.home-skeleton__line--short {
+  width: 55%;
+  margin-top: 6px;
 }
 
-.home-skeleton__line--meta {
-  width: 42%;
-  margin-top: 9px;
-  height: 8px;
-}
-
-@keyframes home-shimmer {
-  0% {
-    background-position: 120% 0;
-  }
-
-  100% {
-    background-position: -120% 0;
-  }
-}
-
-.home-state {
+.home-pager {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 72px 20px 76px;
-  text-align: center;
-}
-
-.home-state__icon {
-  display: flex;
+  gap: 10px;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
-  margin-bottom: 6px;
-  font-size: 22px;
-  color: #7d8ca0;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 16px;
+  margin-top: 28px;
 }
 
-.home-state__title {
-  font-size: 16px;
-  font-weight: 600;
-  color: $vk-text;
-}
-
-.home-state__desc {
-  max-width: 28em;
-  font-size: 13px;
-  line-height: 1.7;
-  color: $vk-text-muted;
-}
-
-.home-state__action {
-  margin-top: 12px;
-  padding: 8px 18px;
-  font-size: 13px;
-  color: $vk-text;
-  cursor: pointer;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-  transition:
-    background-color 0.18s ease,
-    border-color 0.18s ease;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.09);
-    border-color: rgba(255, 255, 255, 0.24);
-  }
-}
-
-.home-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding-top: 36px;
-}
-
-.home-pagination__button {
-  padding: 7px 16px;
-  font-size: 13px;
-  color: $vk-text;
-  cursor: pointer;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  transition:
-    background-color 0.18s ease,
-    border-color 0.18s ease;
-
-  &:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(91, 141, 239, 0.5);
-  }
-
-  &:disabled {
-    color: #4c5666;
-    cursor: not-allowed;
-    border-color: rgba(255, 255, 255, 0.06);
-  }
-}
-
-.home-pagination__info {
-  font-size: 12.5px;
+.home-pager__text {
+  font-size: var(--q-fs-12);
+  color: var(--q-text-tertiary);
   font-variant-numeric: tabular-nums;
-  color: $vk-text-muted;
+}
+
+@media (max-width: 1100px) {
+  .home-featured {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .home-recent {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .home-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 12px;
+  }
+}
+
+@media (max-width: 720px) {
+  .home {
+    padding: 20px 16px 40px;
+  }
+
+  .home-title {
+    font-size: var(--q-fs-20);
+    line-height: var(--q-lh-26);
+  }
+
+  .home-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .home-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

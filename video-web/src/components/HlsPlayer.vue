@@ -11,6 +11,9 @@ import { throttle } from '@/utils/throttle'
  * - 每 15 秒节流抛一次 timeupdate，供上层做进度记忆与服务端上报
  * - 组件卸载或 ArtPlayer destroy 时销毁 hls 实例，避免内存泄漏
  *
+ * 视觉（Qoder 规范）：容器 16:9、圆角 12、播放舞台底色 --q-player-bg；
+ * 控制条主色走 --art-theme: var(--q-primary)，深浅主题自动适配。
+ *
  * 注意：url 变化时请由父组件用 :key 触发重建（播放器实例不做热切换）。
  */
 
@@ -115,7 +118,8 @@ function createPlayer(container: HTMLDivElement): void {
       autoOrientation: true,
       playsInline: true,
       lang: 'zh-cn',
-      theme: '#5b8def',
+      // 控制条主色交给设计令牌（var(--q-primary) 随深浅主题自动切换）
+      theme: 'var(--q-primary)',
       volume: 0.7,
       autoSize: false,
     },
@@ -176,17 +180,41 @@ onBeforeUnmount(() => {
   width: 100%;
   aspect-ratio: 16 / 9;
   overflow: hidden;
-  background: #000000;
-  border: 1px solid $vk-line;
-  border-radius: 14px;
+  background: var(--q-player-bg);
+  border-radius: var(--q-r-xl);
 
-  @include vk-mobile {
-    border-radius: 10px;
+  // ArtPlayer 默认铺满容器：只做圆角裁切 + 设计令牌映射（颜色不写死）
+  :deep(.art-video-player) {
+    --art-theme: var(--q-primary);
+    --art-border-radius: var(--q-r-lg);
+    --art-progress-height: 4px;
+    --art-control-height: 44px;
+    --art-control-icon-size: 32px;
+    --art-widget-background: rgba(8, 8, 7, 0.86);
+    --art-tip-background: rgba(8, 8, 7, 0.72);
+    border-radius: inherit;
   }
 
-  // ArtPlayer 默认铺满容器，这里只做圆角裁切
-  :deep(.art-video-player) {
-    border-radius: inherit;
+  // 全屏 / 网页全屏时取消圆角，避免四角露出舞台底色
+  :deep(.art-video-player.art-fullscreen),
+  :deep(.art-video-player.art-fullscreen-web) {
+    border-radius: 0;
+  }
+
+  // 错误/提示浮层：紧凑 12px 文案 + 令牌圆角（视频画面上的深色浮层除外）
+  :deep(.art-notice) {
+    font-size: var(--q-fs-12);
+    line-height: var(--q-lh-18);
+  }
+
+  :deep(.art-notice-inner) {
+    padding: 6px 10px;
+    line-height: var(--q-lh-18);
+    border-radius: var(--q-r-md);
+  }
+
+  @include q-mobile {
+    border-radius: var(--q-r-lg);
   }
 }
 </style>

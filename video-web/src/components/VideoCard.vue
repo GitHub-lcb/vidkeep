@@ -1,149 +1,76 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import QIcon from '@/components/QIcon.vue'
 import { formatDuration } from '@/utils/format'
 import type { PublicVideoItem } from '@/types/video'
 
 /**
- * 前台视频卡片：封面 + 标题 + 时长/集数/播放量。
- * 无封面时用深色渐变占位；整卡可点击进入详情页。
+ * 前台视频卡片（Qoder 规范：16:9 封面 + 发丝描边 + 悬浮播放；信息层级 13/11）。
  */
-
-const props = defineProps<{
-  video: PublicVideoItem
-}>()
-
-const router = useRouter()
-/** 封面加载失败时回退到渐变占位，避免出现破图 */
-const coverFailed = ref(false)
-
-const hasCover = computed(() => props.video.coverUrl !== null && props.video.coverUrl !== '' && !coverFailed.value)
-
-/** 播放量文案：过万折算为「万」，过亿折算为「亿」，避免长数字撑破卡片 */
-const viewCountText = computed((): string => {
-  const count = props.video.viewCount
-  if (!Number.isFinite(count) || count <= 0) return '0 播放'
-  if (count >= 100_000_000) return `${(count / 100_000_000).toFixed(1)} 亿播放`
-  if (count >= 10_000) return `${(count / 10_000).toFixed(1)} 万播放`
-  return `${count} 播放`
-})
-
-/** 集数文案：单集作品显示「单集」，多集显示「共 N 集」 */
-const episodeCountText = computed((): string => {
-  const count = props.video.episodeCount
-  if (!Number.isFinite(count) || count <= 1) return '单集'
-  return `共 ${count} 集`
-})
-
-function goDetail(): void {
-  void router.push(`/videos/${props.video.id}`)
-}
+const props = defineProps<{ video: PublicVideoItem }>()
 </script>
 
 <template>
-  <article
-    class="video-card"
-    role="link"
-    tabindex="0"
-    :aria-label="`查看视频：${video.title}`"
-    @click="goDetail"
-    @keydown.enter="goDetail"
-    @keydown.space.prevent="goDetail"
-  >
-    <div class="video-card__cover">
+  <RouterLink class="video-card" :to="`/videos/${props.video.id}`">
+    <span class="video-card__cover">
       <img
-        v-if="hasCover"
+        v-if="props.video.coverUrl"
         class="video-card__img"
-        :src="video.coverUrl ?? ''"
-        :alt="video.title"
+        :src="props.video.coverUrl"
+        :alt="props.video.title"
         loading="lazy"
-        @error="coverFailed = true"
       />
-      <div v-else class="video-card__placeholder" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="30" height="30">
-          <path d="M9 7l8 5-8 5z" fill="currentColor" />
-        </svg>
-      </div>
-
-      <span v-if="video.duration !== null && video.duration > 0" class="video-card__duration">
-        {{ formatDuration(video.duration) }}
+      <span v-else class="video-card__placeholder">
+        <QIcon name="film" :size="20" />
       </span>
-      <span v-if="video.categoryName" class="video-card__category">{{ video.categoryName }}</span>
 
-      <span class="video-card__hover-play" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="22" height="22">
-          <path d="M9 7l8 5-8 5z" fill="currentColor" />
-        </svg>
+      <span class="video-card__play" aria-hidden="true">
+        <QIcon name="play" :size="15" />
       </span>
-    </div>
 
-    <div class="video-card__body">
-      <h3 class="video-card__title" :title="video.title">{{ video.title }}</h3>
-      <p class="video-card__meta">
-        <span>{{ episodeCountText }}</span>
+      <span v-if="props.video.duration && props.video.duration > 0" class="video-card__duration">
+        {{ formatDuration(props.video.duration) }}
+      </span>
+    </span>
+
+    <span class="video-card__body">
+      <span class="video-card__title">{{ props.video.title }}</span>
+      <span class="video-card__meta">
+        <span>{{ props.video.categoryName || '未分类' }}</span>
         <span class="video-card__dot" aria-hidden="true">·</span>
-        <span>{{ viewCountText }}</span>
-      </p>
-    </div>
-  </article>
+        <span>{{ props.video.episodeCount }} 集</span>
+        <template v-if="props.video.viewCount > 0">
+          <span class="video-card__dot" aria-hidden="true">·</span>
+          <span>{{ props.video.viewCount.toLocaleString('zh-CN') }} 次播放</span>
+        </template>
+      </span>
+    </span>
+  </RouterLink>
 </template>
 
 <style scoped lang="scss">
-@use '../styles/variables' as *;
-
 .video-card {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  min-width: 0;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 12px;
-  transition:
-    transform 0.22s ease,
-    border-color 0.22s ease,
-    box-shadow 0.22s ease;
-
-  &:hover,
-  &:focus-visible {
-    transform: translateY(-3px);
-    border-color: rgba(91, 141, 239, 0.45);
-    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38);
-    outline: none;
-
-    .video-card__img {
-      transform: scale(1.045);
-    }
-
-    .video-card__hover-play {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-
-    &:hover,
-    &:focus-visible {
-      transform: none;
-    }
-  }
 }
 
 .video-card__cover {
   position: relative;
+  display: block;
   width: 100%;
-  aspect-ratio: 16 / 9;
   overflow: hidden;
-  background: $vk-ink-700;
+  aspect-ratio: 16 / 9;
+  background: var(--q-fill-tertiary);
+  border-radius: var(--q-r-surface);
+  box-shadow: 0 0 0 1px var(--q-border-quaternary) inset;
 }
 
 .video-card__img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.35s ease;
+  transition: transform var(--q-dur-slow) var(--q-ease);
 }
 
 .video-card__placeholder {
@@ -152,88 +79,100 @@ function goDetail(): void {
   justify-content: center;
   width: 100%;
   height: 100%;
-  color: rgba(232, 237, 245, 0.34);
-  background:
-    radial-gradient(120% 90% at 30% 0%, rgba(91, 141, 239, 0.24), transparent 62%),
-    linear-gradient(160deg, #161f2f 0%, #0d131e 100%);
+  color: var(--q-text-quaternary);
+}
+
+.video-card__play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: #fdfdfd;
+  background: rgba(8, 8, 7, 0.55);
+  border-radius: 50%;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.92);
+  transition: opacity var(--q-dur-fast) var(--q-ease), transform var(--q-dur-fast) var(--q-ease);
+  backdrop-filter: blur(4px);
 }
 
 .video-card__duration {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
-  padding: 2px 6px;
-  font-size: 11px;
+  right: 6px;
+  bottom: 6px;
+  padding: 1px 5px;
+  font-size: var(--q-fs-11);
   font-variant-numeric: tabular-nums;
-  color: #f2f5fa;
-  background: rgba(4, 7, 12, 0.78);
-  border-radius: 5px;
-}
-
-.video-card__category {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  padding: 2px 8px;
-  font-size: 11px;
-  color: #dfe7f3;
-  background: rgba(4, 7, 12, 0.62);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  backdrop-filter: blur(4px);
-}
-
-.video-card__hover-play {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  background: rgba(5, 9, 15, 0.34);
-  opacity: 0;
-  transform: scale(1.06);
-  transition:
-    opacity 0.22s ease,
-    transform 0.22s ease;
-
-  svg {
-    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.55));
-  }
+  line-height: 15px;
+  color: #fdfdfd;
+  background: rgba(8, 8, 7, 0.68);
+  border-radius: var(--q-r-sm);
 }
 
 .video-card__body {
   display: flex;
-  flex: 1;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 13px 14px;
+  gap: 3px;
+  padding-top: 10px;
 }
 
 .video-card__title {
   display: -webkit-box;
   overflow: hidden;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.45;
-  color: $vk-text;
-  word-break: break-word;
+  font-size: var(--q-fs-13);
+  font-weight: 500;
+  line-height: var(--q-lh-18);
+  color: var(--q-text);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  line-clamp: 2;
 }
 
 .video-card__meta {
   display: flex;
+  gap: 4px;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-top: auto;
-  font-size: 12px;
-  color: $vk-text-muted;
+  overflow: hidden;
+  font-size: var(--q-fs-11);
+  line-height: var(--q-lh-16);
+  color: var(--q-text-tertiary);
+  white-space: nowrap;
 }
 
 .video-card__dot {
-  color: rgba(139, 151, 168, 0.6);
+  color: var(--q-text-quaternary);
+}
+
+.video-card:hover {
+  .video-card__img {
+    transform: scale(1.03);
+  }
+
+  .video-card__play {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  .video-card__title {
+    color: var(--q-primary-text);
+  }
+}
+
+.video-card:focus-visible {
+  outline: none;
+
+  .video-card__cover {
+    box-shadow: 0 0 0 2px var(--q-primary-border);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .video-card__img,
+  .video-card__play {
+    transition: none;
+  }
 }
 </style>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import QIcon from '@/components/QIcon.vue'
 import { getPublicVideoDetail } from '@/api/play'
 import { isBizError } from '@/api/request'
 import { formatDateTime, formatDuration } from '@/utils/format'
@@ -11,6 +12,7 @@ import type { PublicEpisodeItem, PublicVideoDetail } from '@/types/video'
  * 前台视频详情页（/videos/:id）：
  * 展示封面、标题、简介、分类、播放量、发布时间与剧集列表；
  * 只有转码完成（DONE）的剧集可点击进入播放页，其余显示转码状态。
+ * 视觉：Qoder 规范——封面 + 信息双栏卡片（20/600 标题）、q-tag 状态、剧集行列表。
  */
 
 const route = useRoute()
@@ -20,10 +22,10 @@ const detail = ref<PublicVideoDetail | null>(null)
 const loading = ref(true)
 const errorMessage = ref('')
 
-/** 剧集转码状态文案（文档 7.2 状态机） */
+/** 剧集转码状态文案（文档 7.2 状态机；排队与转码中统一按「转码中」展示） */
 const TRANSCODE_STATUS_TEXT: Record<TranscodeStatus, string> = {
-  NONE: '待转码',
-  PENDING: '排队中',
+  NONE: '未开始',
+  PENDING: '转码中',
   PROCESSING: '转码中',
   FAILED: '转码失败',
   DONE: '可播放',
@@ -54,6 +56,11 @@ const firstPlayableEpisode = computed((): PublicEpisodeItem | null => {
   return sortedEpisodes.value.find((episode) => episode.transcodeStatus === 'DONE') ?? null
 })
 
+/** 可播放剧集数量（仅用于页头与信息区提示，不影响交互） */
+const playableCount = computed((): number => {
+  return sortedEpisodes.value.filter((episode) => episode.transcodeStatus === 'DONE').length
+})
+
 const categoryName = computed((): string => detail.value?.categoryName ?? '未分类')
 
 async function loadDetail(): Promise<void> {
@@ -82,21 +89,27 @@ function episodeTitle(episode: PublicEpisodeItem): string {
   return episode.title !== null && episode.title.length > 0 ? episode.title : `第 ${episode.episodeNo} 集`
 }
 
+/** 剧集序号：两位数等宽展示（01、02……），避免与标题兜底重复 */
+function episodeIndex(episode: PublicEpisodeItem): string {
+  return String(episode.episodeNo).padStart(2, '0')
+}
+
 /** 剧集状态标签文案 */
 function statusText(status: TranscodeStatus): string {
   return TRANSCODE_STATUS_TEXT[status]
 }
 
+/** 剧集状态标签语义色（Qoder q-tag）：完成=绿、失败=红、未开始=蓝、其余=橙 */
+function statusTagClass(status: TranscodeStatus): string {
+  if (status === 'DONE') return 'q-tag--success'
+  if (status === 'FAILED') return 'q-tag--danger'
+  if (status === 'NONE') return 'q-tag--info'
+  return 'q-tag--warning'
+}
+
 /** 仅转码完成的剧集可播放（PENDING/PROCESSING 需等待，FAILED 需管理员重试） */
 function isPlayable(episode: PublicEpisodeItem): boolean {
   return episode.transcodeStatus === 'DONE'
-}
-
-/** 状态标签样式：转码中/失败用不同色调提示 */
-function statusClass(status: TranscodeStatus): string {
-  if (status === 'DONE') return 'is-done'
-  if (status === 'FAILED') return 'is-failed'
-  return 'is-processing'
 }
 
 function playEpisode(episode: PublicEpisodeItem): void {
@@ -116,129 +129,143 @@ watch(videoId, () => {
 </script>
 
 <template>
-  <div class="detail">
-    <div class="detail-nav">
-      <RouterLink class="detail-back" to="/">← 返回首页</RouterLink>
-    </div>
+  <div class="q-page q-fade-in detail">
+    <header class="q-page-head">
+      <div class="q-page-head__main">
+        <RouterLink class="q-btn q-btn--ghost q-btn--sm detail__back" to="/">
+          <QIcon name="arrow-left" :size="14" />
+          返回首页
+        </RouterLink>
+      </div>
+      <div v-if="!loading && detail !== null" class="q-page-actions">
+        <span class="q-caption">{{ sortedEpisodes.length }} 集 · {{ playableCount }} 集可播放</span>
+      </div>
+    </header>
 
-    <!-- 加载态 -->
-    <section v-if="loading" class="detail-loading" aria-busy="true" aria-label="视频详情加载中">
+    <!-- 加载态：封面 + 信息骨架 -->
+    <section v-if="loading" class="q-card q-card--pad detail-loading" aria-busy="true" aria-label="视频详情加载中">
       <div class="detail-loading__hero">
-        <div class="detail-loading__cover" />
+        <div class="q-skeleton detail-loading__cover" />
         <div class="detail-loading__info">
-          <div class="detail-loading__line detail-loading__line--title" />
-          <div class="detail-loading__line" />
-          <div class="detail-loading__line detail-loading__line--short" />
+          <div class="q-skeleton detail-loading__line detail-loading__line--tag" />
+          <div class="q-skeleton detail-loading__line detail-loading__line--title" />
+          <div class="q-skeleton detail-loading__line" />
+          <div class="q-skeleton detail-loading__line detail-loading__line--short" />
+          <div class="q-skeleton detail-loading__button" />
         </div>
       </div>
     </section>
 
     <!-- 错误态 -->
-    <section v-else-if="errorMessage !== '' || detail === null" class="detail-state">
-      <p class="detail-state__icon" aria-hidden="true">!</p>
-      <h1 class="detail-state__title">无法加载视频</h1>
-      <p class="detail-state__desc">{{ errorMessage !== '' ? errorMessage : '视频不存在或已下架' }}</p>
-      <div class="detail-state__actions">
-        <button type="button" class="detail-state__button" @click="loadDetail">重新加载</button>
-        <RouterLink class="detail-state__link" to="/">返回首页</RouterLink>
+    <section v-else-if="errorMessage !== '' || detail === null" class="q-card q-card--pad detail-state" role="alert">
+      <div class="q-empty">
+        <div class="q-empty__stack">
+          <span class="q-empty__face"><QIcon name="alert" :size="18" /></span>
+        </div>
+        <p class="q-empty__title">无法加载视频</p>
+        <p class="q-empty__desc">{{ errorMessage !== '' ? errorMessage : '视频不存在或已下架' }}</p>
+        <div class="q-empty__actions">
+          <button type="button" class="q-btn q-btn--outline q-btn--sm" @click="loadDetail">
+            <QIcon name="refresh" :size="13" />
+            重新加载
+          </button>
+          <RouterLink class="q-btn q-btn--ghost q-btn--sm" to="/">返回首页</RouterLink>
+        </div>
       </div>
     </section>
 
     <template v-else>
-      <section class="detail-hero">
-        <div class="detail-cover">
+      <!-- 封面 + 信息 -->
+      <section class="q-card detail-hero">
+        <div class="detail-hero__cover">
           <img
             v-if="detail.coverUrl !== null && detail.coverUrl !== ''"
-            class="detail-cover__img"
+            class="detail-hero__img"
             :src="detail.coverUrl"
             :alt="detail.title"
           />
-          <div v-else class="detail-cover__placeholder" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="40" height="40">
-              <path d="M9 7l8 5-8 5z" fill="currentColor" />
-            </svg>
+          <div v-else class="detail-hero__placeholder" aria-hidden="true">
+            <QIcon name="film" :size="32" />
           </div>
         </div>
 
-        <div class="detail-info">
-          <div class="detail-info__top">
-            <span class="detail-category">{{ categoryName }}</span>
-            <span class="detail-count">共 {{ sortedEpisodes.length }} 集</span>
+        <div class="detail-hero__body">
+          <div class="detail-hero__tags">
+            <span class="q-tag">
+              <QIcon name="tag" :size="12" />
+              {{ categoryName }}
+            </span>
+            <span class="q-tag">{{ sortedEpisodes.length }} 集</span>
           </div>
 
-          <h1 class="detail-title">{{ detail.title }}</h1>
+          <h1 class="detail-hero__title">{{ detail.title }}</h1>
 
-          <p class="detail-meta">
-            <span>{{ detail.viewCount }} 次播放</span>
-            <span class="detail-meta__dot" aria-hidden="true">·</span>
+          <p class="detail-hero__meta">
+            <span>{{ detail.viewCount.toLocaleString('zh-CN') }} 次播放</span>
+            <span class="detail-hero__dot" aria-hidden="true">·</span>
             <span>发布于 {{ formatDateTime(detail.createdAt, 'YYYY-MM-DD') }}</span>
             <template v-if="totalDuration > 0">
-              <span class="detail-meta__dot" aria-hidden="true">·</span>
+              <span class="detail-hero__dot" aria-hidden="true">·</span>
               <span>总时长 {{ formatDuration(totalDuration) }}</span>
             </template>
           </p>
 
-          <p class="detail-desc">{{ detail.description !== null && detail.description.length > 0 ? detail.description : '暂无简介' }}</p>
+          <p class="detail-hero__desc">
+            {{ detail.description !== null && detail.description.length > 0 ? detail.description : '暂无简介' }}
+          </p>
 
-          <button
-            type="button"
-            class="detail-play"
-            :disabled="firstPlayableEpisode === null"
-            @click="startPlay"
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-              <path d="M9 7l8 5-8 5z" fill="currentColor" />
-            </svg>
-            {{ firstPlayableEpisode === null ? '暂无可播放剧集' : '开始播放' }}
-          </button>
+          <div class="detail-hero__actions">
+            <button
+              type="button"
+              class="q-btn q-btn--primary q-btn--lg"
+              :disabled="firstPlayableEpisode === null"
+              @click="startPlay"
+            >
+              <QIcon name="play" :size="16" />
+              {{ firstPlayableEpisode === null ? '暂无可播放剧集' : '开始播放' }}
+            </button>
+            <button type="button" class="q-btn q-btn--ghost" @click="loadDetail">
+              <QIcon name="refresh" :size="14" />
+              刷新状态
+            </button>
+          </div>
         </div>
       </section>
 
-      <section class="detail-episodes">
-        <div class="detail-episodes__header">
-          <h2 class="detail-episodes__title">剧集列表</h2>
-          <span class="detail-episodes__count">{{ sortedEpisodes.length }} 集</span>
+      <!-- 剧集列表 -->
+      <section class="q-card q-card--pad detail-episodes">
+        <header class="detail-episodes__head">
+          <h2 class="q-section-title">剧集</h2>
+          <span class="q-caption">{{ sortedEpisodes.length }} 集</span>
+        </header>
+
+        <div v-if="sortedEpisodes.length === 0" class="q-empty">
+          <div class="q-empty__stack">
+            <span class="q-empty__face"><QIcon name="film" :size="18" /></span>
+          </div>
+          <p class="q-empty__title">剧集尚未上传</p>
+          <p class="q-empty__desc">管理员上传并转码完成后，剧集会自动出现在这里。</p>
         </div>
 
-        <div v-if="sortedEpisodes.length === 0" class="detail-episodes__empty">剧集尚未上传</div>
-
-        <div v-else class="detail-episode-grid">
+        <div v-else class="episode-list">
           <button
             v-for="episode in sortedEpisodes"
             :key="episode.id"
             type="button"
-            class="episode-card"
-            :class="{ 'is-playable': isPlayable(episode), 'is-disabled': !isPlayable(episode) }"
+            class="episode-row"
             :disabled="!isPlayable(episode)"
+            :aria-label="`${isPlayable(episode) ? '播放' : '暂不可播放'}：第 ${episode.episodeNo} 集 ${episodeTitle(episode)}`"
             @click="playEpisode(episode)"
           >
-            <span class="episode-card__no">第 {{ episode.episodeNo }} 集</span>
-            <span class="episode-card__title" :title="episodeTitle(episode)">{{ episodeTitle(episode) }}</span>
-            <span class="episode-card__footer">
-              <span
-                v-if="episode.transcodeStatus !== 'DONE'"
-                class="episode-card__status"
-                :class="statusClass(episode.transcodeStatus)"
-              >
-                {{ statusText(episode.transcodeStatus) }}
-              </span>
-              <template v-else>
-                <span v-if="episode.duration !== null && episode.duration > 0" class="episode-card__duration">
-                  {{ formatDuration(episode.duration) }}
-                </span>
-                <span v-else class="episode-card__duration">可播放</span>
-              </template>
-              <svg
-                v-if="isPlayable(episode)"
-                class="episode-card__play-icon"
-                viewBox="0 0 24 24"
-                width="12"
-                height="12"
-                aria-hidden="true"
-              >
-                <path d="M9 7l8 5-8 5z" fill="currentColor" />
-              </svg>
+            <span class="episode-row__no q-mono">{{ episodeIndex(episode) }}</span>
+            <span class="episode-row__title" :title="episodeTitle(episode)">{{ episodeTitle(episode) }}</span>
+            <span v-if="episode.duration !== null && episode.duration > 0" class="episode-row__duration">
+              {{ formatDuration(episode.duration) }}
             </span>
+            <span class="q-tag" :class="statusTagClass(episode.transcodeStatus)">
+              {{ statusText(episode.transcodeStatus) }}
+            </span>
+            <QIcon v-if="isPlayable(episode)" name="chevron-right" :size="14" class="episode-row__chevron" />
           </button>
         </div>
       </section>
@@ -250,430 +277,282 @@ watch(videoId, () => {
 @use '../../styles/variables' as *;
 
 .detail {
-  max-width: 1120px;
-  margin: 0 auto;
-  padding: 20px 24px 72px;
-
-  @include vk-mobile {
-    padding: 14px 16px 48px;
-  }
+  padding-top: var(--q-sp-4);
 }
 
-.detail-nav {
-  padding: 6px 0 18px;
-}
-
-.detail-back {
-  font-size: 13px;
-  color: $vk-text-muted;
-  transition: color 0.18s ease;
-
-  &:hover {
-    color: $vk-text;
-  }
+/* ghost 按钮自带 8px 内边距，负左边距让文字对齐内容左缘 */
+.detail__back {
+  margin-left: -8px;
 }
 
 /* ---------- 加载骨架 ---------- */
-.detail-loading__hero {
-  display: flex;
-  gap: 28px;
+.detail-loading {
+  margin-top: var(--q-sp-4);
+}
 
-  @include vk-mobile {
-    flex-direction: column;
-    gap: 18px;
+.detail-loading__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+  gap: var(--q-sp-6);
+
+  @include q-tablet {
+    grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  }
+
+  @include q-mobile {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--q-sp-4);
   }
 }
 
 .detail-loading__cover {
-  flex-shrink: 0;
-  width: 380px;
   aspect-ratio: 16 / 9;
-  background: linear-gradient(100deg, #131b28 30%, #1b2536 50%, #131b28 70%);
-  background-size: 220% 100%;
-  border-radius: 14px;
-  animation: detail-shimmer 1.4s ease-in-out infinite;
-
-  @include vk-tablet {
-    width: 320px;
-  }
-
-  @include vk-mobile {
-    width: 100%;
-  }
+  border-radius: var(--q-r-xl);
 }
 
 .detail-loading__info {
-  flex: 1;
-  padding-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--q-sp-3);
+  padding-top: var(--q-sp-1);
 }
 
 .detail-loading__line {
-  height: 12px;
-  margin-bottom: 14px;
-  background: linear-gradient(100deg, #131b28 30%, #1b2536 50%, #131b28 70%);
-  background-size: 220% 100%;
-  border-radius: 6px;
-  animation: detail-shimmer 1.4s ease-in-out infinite;
+  height: 10px;
+  border-radius: var(--q-r-sm);
+}
+
+.detail-loading__line--tag {
+  width: 34%;
+  height: 18px;
 }
 
 .detail-loading__line--title {
-  width: 52%;
+  width: 62%;
   height: 22px;
 }
 
 .detail-loading__line--short {
-  width: 34%;
+  width: 40%;
 }
 
-@keyframes detail-shimmer {
-  0% {
-    background-position: 120% 0;
-  }
-
-  100% {
-    background-position: -120% 0;
-  }
+.detail-loading__button {
+  width: 132px;
+  height: var(--q-ctl-lg);
+  margin-top: var(--q-sp-2);
+  border-radius: var(--q-r-control);
 }
 
 /* ---------- 错误态 ---------- */
 .detail-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 80px 20px 90px;
-  text-align: center;
+  margin-top: var(--q-sp-4);
 }
 
-.detail-state__icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 56px;
-  margin-bottom: 10px;
-  font-size: 22px;
-  color: #7d8ca0;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 16px;
-}
-
-.detail-state__title {
-  font-size: 17px;
-  font-weight: 600;
-  color: $vk-text;
-}
-
-.detail-state__desc {
-  max-width: 26em;
-  margin-top: 6px;
-  font-size: 13px;
-  line-height: 1.7;
-  color: $vk-text-muted;
-}
-
-.detail-state__actions {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-top: 18px;
-}
-
-.detail-state__button {
-  padding: 8px 18px;
-  font-size: 13px;
-  color: $vk-text;
-  cursor: pointer;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.09);
-  }
-}
-
-.detail-state__link {
-  font-size: 13px;
-  color: $vk-text-muted;
-
-  &:hover {
-    color: $vk-text;
-  }
-}
-
-/* ---------- 详情头部 ---------- */
+/* ---------- 封面 + 信息 ---------- */
 .detail-hero {
-  display: flex;
-  gap: 30px;
-  padding: 20px 0 34px;
+  display: grid;
+  grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+  gap: var(--q-sp-6);
+  padding: var(--q-sp-5);
+  margin-top: var(--q-sp-4);
 
-  @include vk-tablet {
-    gap: 22px;
+  @include q-tablet {
+    grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+    gap: var(--q-sp-5);
   }
 
-  @include vk-mobile {
-    flex-direction: column;
-    gap: 18px;
-    padding-bottom: 26px;
+  @include q-mobile {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--q-sp-4);
+    padding: var(--q-sp-4);
   }
 }
 
-.detail-cover {
-  flex-shrink: 0;
-  width: 380px;
+.detail-hero__cover {
+  position: relative;
   aspect-ratio: 16 / 9;
   overflow: hidden;
-  background: $vk-ink-700;
-  border: 1px solid $vk-line;
-  border-radius: 14px;
-
-  @include vk-tablet {
-    width: 320px;
-  }
-
-  @include vk-mobile {
-    width: 100%;
-  }
+  background: var(--q-fill-tertiary);
+  border-radius: var(--q-r-xl);
+  box-shadow: 0 0 0 1px var(--q-border-quaternary) inset;
 }
 
-.detail-cover__img {
+.detail-hero__img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.detail-cover__placeholder {
+.detail-hero__placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
   height: 100%;
-  color: rgba(232, 237, 245, 0.34);
-  background:
-    radial-gradient(120% 90% at 30% 0%, rgba(91, 141, 239, 0.24), transparent 62%),
-    linear-gradient(160deg, #161f2f 0%, #0d131e 100%);
+  color: var(--q-text-quaternary);
+  background: var(--q-bg-elevated);
 }
 
-.detail-info {
+.detail-hero__body {
   display: flex;
-  flex: 1;
   flex-direction: column;
+  align-items: flex-start;
   min-width: 0;
 }
 
-.detail-info__top {
+.detail-hero__tags {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.detail-category {
-  padding: 3px 10px;
-  font-size: 11.5px;
-  color: #b9c8dd;
-  background: rgba(91, 141, 239, 0.12);
-  border: 1px solid rgba(91, 141, 239, 0.36);
-  border-radius: 999px;
-}
-
-.detail-count {
-  font-size: 12px;
-  color: $vk-text-muted;
-}
-
-.detail-title {
-  margin-top: 12px;
-  font-size: clamp(22px, 3.4vw, 32px);
-  font-weight: 700;
-  line-height: 1.3;
-  color: #f3f6fb;
+.detail-hero__title {
+  margin-top: 10px;
+  font-size: var(--q-fs-20);
+  font-weight: 600;
+  line-height: var(--q-lh-26);
+  color: var(--q-text);
+  letter-spacing: -0.02em;
   word-break: break-word;
 }
 
-.detail-meta {
+.detail-hero__meta {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 7px;
-  margin-top: 10px;
-  font-size: 12.5px;
-  color: $vk-text-muted;
+  gap: 6px;
+  align-items: center;
+  margin-top: var(--q-sp-2);
+  font-size: var(--q-fs-12);
+  line-height: var(--q-lh-18);
+  color: var(--q-text-tertiary);
 }
 
-.detail-meta__dot {
-  color: rgba(139, 151, 168, 0.55);
+.detail-hero__dot {
+  color: var(--q-text-quaternary);
 }
 
-.detail-desc {
+.detail-hero__desc {
   display: -webkit-box;
   overflow: hidden;
-  margin-top: 14px;
-  font-size: 13px;
-  line-height: 1.8;
-  color: #a6b2c3;
+  margin-top: var(--q-sp-3);
+  font-size: var(--q-fs-13);
+  line-height: var(--q-lh-20);
+  color: var(--q-text-secondary);
   word-break: break-word;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 5;
   line-clamp: 5;
 }
 
-.detail-play {
-  display: inline-flex;
+.detail-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--q-sp-2);
   align-items: center;
-  align-self: flex-start;
-  gap: 8px;
-  height: 40px;
-  margin-top: 22px;
-  padding: 0 22px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #ffffff;
-  cursor: pointer;
-  background: linear-gradient(180deg, #5f8ff2, #4a76d6);
-  border: none;
-  border-radius: 9px;
-  box-shadow: 0 10px 24px rgba(74, 118, 214, 0.28);
-  transition: background 0.18s ease;
-
-  &:hover:not(:disabled) {
-    background: linear-gradient(180deg, #6d9af5, #4f7cdd);
-  }
-
-  &:disabled {
-    color: #97a3b4;
-    cursor: not-allowed;
-    background: rgba(255, 255, 255, 0.06);
-    box-shadow: none;
-  }
+  margin-top: auto;
+  padding-top: var(--q-sp-5);
 }
 
 /* ---------- 剧集列表 ---------- */
 .detail-episodes {
-  padding-top: 26px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  margin-top: var(--q-sp-4);
 }
 
-.detail-episodes__header {
+.detail-episodes__head {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--q-border-quaternary);
 }
 
-.detail-episodes__title {
-  font-size: 16px;
-  font-weight: 600;
-  color: $vk-text;
-}
-
-.detail-episodes__count {
-  font-size: 12px;
-  color: $vk-text-muted;
-}
-
-.detail-episodes__empty {
-  padding: 40px 0;
-  font-size: 13px;
-  text-align: center;
-  color: $vk-text-muted;
-}
-
-.detail-episode-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
-  gap: 12px;
-  margin-top: 16px;
-
-  @include vk-mobile {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-}
-
-.episode-card {
+.episode-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 13px;
+  gap: 2px;
+  margin-top: var(--q-sp-2);
+}
+
+.episode-row {
+  display: flex;
+  gap: var(--q-sp-3);
+  align-items: center;
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 10px;
   text-align: left;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  transition:
-    background-color 0.18s ease,
-    border-color 0.18s ease,
-    transform 0.18s ease;
+  background: transparent;
+  border: none;
+  border-radius: var(--q-r-lg);
+  transition: background-color var(--q-dur-fast) var(--q-ease);
 
-  &.is-playable:hover,
-  &.is-playable:focus-visible {
-    transform: translateY(-2px);
-    background: rgba(91, 141, 239, 0.09);
-    border-color: rgba(91, 141, 239, 0.5);
+  &:not(:disabled):hover {
+    background: var(--q-fill-tertiary);
+  }
+
+  &:not(:disabled):focus-visible {
     outline: none;
+    box-shadow: 0 0 0 2px var(--q-primary-border);
   }
 
-  &.is-disabled {
+  &:disabled {
     cursor: not-allowed;
-    opacity: 0.72;
+    opacity: var(--q-disabled-opacity);
   }
 }
 
-.episode-card__no {
-  font-size: 11.5px;
-  letter-spacing: 0.02em;
-  color: #93a3ba;
+.episode-row__no {
+  flex: none;
+  width: 20px;
+  font-size: var(--q-fs-12);
+  line-height: var(--q-lh-16);
+  color: var(--q-text-tertiary);
+  text-align: left;
 }
 
-.episode-card__title {
+.episode-row__title {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
-  font-size: 13.5px;
-  font-weight: 600;
-  color: $vk-text;
+  font-size: var(--q-fs-13);
+  font-weight: 500;
+  line-height: var(--q-lh-18);
+  color: var(--q-text);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.episode-card__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 2px;
-}
-
-.episode-card__duration {
-  font-size: 11.5px;
+.episode-row__duration {
+  flex: none;
+  font-size: var(--q-fs-11);
   font-variant-numeric: tabular-nums;
-  color: $vk-text-muted;
+  line-height: var(--q-lh-16);
+  color: var(--q-text-tertiary);
 }
 
-.episode-card__status {
-  padding: 1px 7px;
-  font-size: 11px;
-  border-radius: 999px;
-
-  &.is-processing {
-    color: #e6c07a;
-    background: rgba(230, 192, 122, 0.10);
-    border: 1px solid rgba(230, 192, 122, 0.28);
-  }
-
-  &.is-failed {
-    color: #f08181;
-    background: rgba(240, 129, 129, 0.10);
-    border: 1px solid rgba(240, 129, 129, 0.28);
-  }
-
-  &.is-done {
-    color: #7fd3a0;
-    background: rgba(127, 211, 160, 0.10);
-    border: 1px solid rgba(127, 211, 160, 0.28);
-  }
+.episode-row__chevron {
+  flex: none;
+  color: var(--q-text-quaternary);
 }
 
-.episode-card__play-icon {
-  flex-shrink: 0;
-  color: $vk-accent;
+@include q-mobile {
+  .detail {
+    padding-top: var(--q-sp-2);
+  }
+
+  .detail-hero__title {
+    font-size: var(--q-fs-18);
+    line-height: var(--q-lh-24);
+  }
+
+  .detail-hero__actions {
+    padding-top: var(--q-sp-4);
+  }
+
+  .episode-row {
+    gap: var(--q-sp-2);
+  }
 }
 </style>
