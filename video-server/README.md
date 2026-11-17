@@ -90,8 +90,30 @@ python scripts/dev/e2e-video-flow.py
 > 本地开发时后端额外把 `DATA_DIR/hls`、`DATA_DIR/covers` 映射为 `/hls/**`、`/covers/**` 静态资源，
 > 方便没有 Nginx 时直接联调；生产环境由 Nginx 分发（文档 8.5）。
 
-## 已知限制（M4/P1 阶段）
+## P1 能力（2026-11-17）
 
-- 播放地址签名（防盗链 F-17）未启用，`/hls/**` 当前公开可访问
-- 播放统计（F-15）未做，`video.view_count` 暂不增长
-- 多码率仅 TRANSCODE 输出 720P+480P；REMUX 输出单档
+| 功能 | 实现 | 接口/入口 |
+|---|---|---|
+| F-17 防盗链 | `PlayTokenService`（HMAC 签名）+ `HlsStreamController`（/hls 全链路校验、m3u8 子列表/切片改写；未签名 HTTP 403） | 播放接口返回带 `?expire=&token=` 的地址 |
+| F-18 站点访问口令 | `SiteAccessService` + `SiteAccessFilter`（cookie 门禁，管理员 JWT 豁免） | `GET /api/public/site/status`、`POST /api/public/site/verify` |
+| F-19 操作日志 | `admin_operation_log` 表 + `OperationLogAspect` 自动审计 + 查询接口 | `GET /api/admin/operation-logs` |
+| F-15 播放统计 | 播放接口 `view_count+1`；观看时长按 `play_history.duration` 汇总 | `GET /api/admin/stats` |
+
+详见 [docs/02-P1功能设计说明.md](../docs/02-P1功能设计说明.md)。新增环境变量：
+
+| 变量 | 说明 | 默认 |
+|---|---|---|
+| `PLAY_TOKEN_SECRET` | 播放签名密钥（≥32 字节；未配置回退 JWT_SECRET） | — |
+| `PLAY_TOKEN_EXPIRE_SECONDS` | master 签名有效期 | 7200 |
+| `PLAY_SEGMENT_EXPIRE_SECONDS` | 切片签名有效期 | 43200 |
+| `SITE_ACCESS_PASSWORD` | 站点口令，留空=关闭 | 空 |
+| `SITE_TOKEN_SECRET` | 口令 cookie 签名密钥 | 回退 JWT_SECRET |
+
+> P1 起 `/hls/**` 由后端签名校验与改写，生产 Nginx 需把 `/hls/` 反代到 app（见 `deploy/nginx/conf.d/vidkeep.conf`）。
+
+## 已知限制
+
+- 播放签名为 2 小时有效（切片 12 小时），过期需重新进入播放页获取新地址
+- 播放次数为粗口径（刷新会累计）；观看时长为「每设备每集最后一次时长」汇总
+- 审计日志只增不删，后续 M4 可加归档清理任务
+- 站点口令为单一共享口令，不支持多账号

@@ -102,6 +102,7 @@ video-web/
 | `/admin/videos/:id` | 视频编辑（信息 + 剧集表格 + 预览/删单集） | 需登录 + ADMIN |
 | `/admin/upload` | 视频上传（选作品 + 分片上传 + 转码进度） | 需登录 + ADMIN |
 | `/admin/categories` | 分类管理（CRUD） | 需登录 + ADMIN |
+| `/admin/logs` | 操作日志（P1 审计，按用户名/模块筛选） | 需登录 + ADMIN |
 | 其他 | 404 兜底 | — |
 
 守卫规则（`src/router/index.ts`）：未登录访问 `/admin/**` → `/admin/login?redirect=...`；
@@ -125,6 +126,8 @@ video-web/
 | `api/upload.ts` | 秒传检查、init、分片 PUT、status、complete |
 | `api/transcode.ts` | 转码进度查询、重试、取消 |
 | `api/play.ts` | 前台列表/详情、播放地址、播放进度上报/查询 |
+| `api/site.ts` | P1 站点口令状态/校验 |
+| `api/admin.ts` | P1 后台统计、操作日志列表 |
 
 ## M0–M3 完成范围
 
@@ -135,6 +138,7 @@ video-web/
 - [x] M2 播放：ArtPlayer + hls.js 封装（Safari 原生回退）、进度记忆（服务端 + localStorage，≥95% 归零、15s 上报）
 - [x] M3 管理页：视频列表/编辑、上传页、分类管理、仪表盘真实统计
 - [x] M3 前台：首页列表/搜索/分类筛选、详情/剧集、播放页
+- [x] P1：站点访问口令门禁（`SiteGate`）、操作日志页、仪表盘真实统计、播放地址过期重试
 - [x] 类型全量、无 any、无组件内裸 axios
 
-后续（M4/P1）：播放地址签名、播放统计、多码率切换提示、Element Plus 按需引入减包。
+后续（M4）：HTTPS/CDN、播放器多码率手动切换、Element Plus 按需引入减包。

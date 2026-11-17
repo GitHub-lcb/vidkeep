@@ -117,11 +117,14 @@ powershell -ExecutionPolicy Bypass -File scripts/dev/start-backend.ps1
 > 本机默认 `java` 可能是老版本，脚本会优先用 `VIDKEEP_JDK21` / `JDK21_HOME`（或自动探测）定位 JDK 21。
 > FFmpeg 未安装时，在 `.env` 把 `FFMPEG_PATH` / `FFPROBE_PATH` 指向可执行文件绝对路径。
 
-### 联调验证（M1–M3 全链路）
+### 联调验证
 
 ```bash
-# 需要后端已启动 + FFmpeg；覆盖上传/断点续传/转码/HLS/进度记忆/秒传/级联删除
+# M1–M3 全链路：上传/断点续传/转码/HLS/进度记忆/秒传/级联删除 + P1 签名/播放量/审计
 python scripts/dev/e2e-video-flow.py
+
+# 站点访问口令专项（需先启动开启 SITE_ACCESS_PASSWORD 的实例）
+python scripts/dev/e2e-site-gate.py --base http://localhost:8082 --password dev-gate
 ```
 
 ### 前端
@@ -167,6 +170,7 @@ powershell -ExecutionPolicy Bypass -File scripts/dev/init-db.ps1
 | M1 | 分片上传与存储 | ✅ 已完成（2026-11-16：五接口 + 秒传/断点续传 + 合并 MD5 + 上传组件） |
 | M2 | 转码流水线与 HLS 播放 | ✅ 已完成（2026-11-16：FFmpeg/Redis Stream Worker/进度/重试/取消 + HLS 播放 + 进度记忆） |
 | M3 | 管理后台 | ✅ 已完成（2026-11-16：视频/分类管理、上传页、仪表盘 + 前台列表/详情/播放页） |
+| P1 | 播放统计/防盗链/站点口令/操作日志 | ✅ 已完成（2026-11-17：见 docs/02-P1功能设计说明.md） |
 | M4 | 部署与加固 | ⬜ 待开始 |
 
 > 每完成一个里程碑，更新此表。
