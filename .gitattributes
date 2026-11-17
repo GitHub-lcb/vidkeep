@@ -17,4 +17,5 @@
 *.ttf binary
 *.mp4 binary
 *.m3u8 binary
-*.ts binary
+# 注意：不能写 *.ts binary —— 本项目前端是 TypeScript 源码；
+# HLS 的 .ts 分片只出现在 data/ 目录（已被 .gitignore 整体忽略）。
