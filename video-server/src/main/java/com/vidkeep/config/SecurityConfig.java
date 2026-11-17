@@ -3,6 +3,7 @@ package com.vidkeep.config;
 import com.vidkeep.security.JwtAuthFilter;
 import com.vidkeep.security.RestAccessDeniedHandler;
 import com.vidkeep.security.RestAuthenticationEntryPoint;
+import com.vidkeep.security.SiteAccessFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -29,13 +30,16 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final SiteAccessFilter siteAccessFilter;
     private final RestAuthenticationEntryPoint authenticationEntryPoint;
     private final RestAccessDeniedHandler accessDeniedHandler;
 
     public SecurityConfig(JwtAuthFilter jwtAuthFilter,
+                          SiteAccessFilter siteAccessFilter,
                           RestAuthenticationEntryPoint authenticationEntryPoint,
                           RestAccessDeniedHandler accessDeniedHandler) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.siteAccessFilter = siteAccessFilter;
         this.authenticationEntryPoint = authenticationEntryPoint;
         this.accessDeniedHandler = accessDeniedHandler;
     }
@@ -63,7 +67,9 @@ public class SecurityConfig {
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // 站点访问口令（P1 F-18）：放在 JWT 之后，已登录管理员自动豁免
+                .addFilterAfter(siteAccessFilter, JwtAuthFilter.class);
         return http.build();
     }
 }
