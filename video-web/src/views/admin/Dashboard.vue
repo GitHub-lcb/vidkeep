@@ -132,7 +132,7 @@ onMounted(() => {
         </ol>
         <div class="dash-panel__foot">
           <RouterLink class="q-btn q-btn--ghost q-btn--sm" to="/admin/videos">
-            管理视频
+            作品管理
             <QIcon name="chevron-right" :size="13" />
           </RouterLink>
           <RouterLink class="q-btn q-btn--ghost q-btn--sm" to="/admin/categories">

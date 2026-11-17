@@ -53,7 +53,7 @@ const routes: RouteRecordRaw[] = [
         path: 'videos',
         name: 'admin-videos',
         component: () => import('@/views/admin/VideoList.vue'),
-        meta: { title: '视频管理', requiresAuth: true, requiresAdmin: true },
+        meta: { title: '作品管理', requiresAuth: true, requiresAdmin: true },
       },
       {
         path: 'videos/:id',

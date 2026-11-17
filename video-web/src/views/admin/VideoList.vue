@@ -212,8 +212,8 @@ onMounted(() => {
   <div class="q-page q-fade-in">
     <header class="q-page-head">
       <div class="q-page-head__main">
-        <h1 class="q-page-title">视频管理</h1>
-        <p class="q-page-desc">管理作品基础信息、上下架状态，并为作品上传剧集文件</p>
+        <h1 class="q-page-title">作品管理</h1>
+        <p class="q-page-desc">作品是视频的容器：一个作品可挂多个剧集文件，支持上下架与分类</p>
       </div>
       <div class="q-page-actions">
         <button

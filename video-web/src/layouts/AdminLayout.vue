@@ -18,7 +18,7 @@ interface NavItem {
 
 const CONTENT_NAV: NavItem[] = [
   { path: '/admin/dashboard', label: '概览', icon: 'home' },
-  { path: '/admin/videos', label: '视频管理', icon: 'film' },
+  { path: '/admin/videos', label: '作品管理', icon: 'film' },
   { path: '/admin/upload', label: '视频上传', icon: 'upload' },
   { path: '/admin/categories', label: '分类管理', icon: 'folder' },
 ]

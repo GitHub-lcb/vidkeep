@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import QIcon from '@/components/QIcon.vue'
 import UploadPanel from '@/components/UploadPanel.vue'
-import { getAdminVideo, listAdminVideos } from '@/api/video'
+import { createAdminVideo, getAdminVideo, listAdminVideos } from '@/api/video'
+import { listCategories } from '@/api/category'
 import { isBizError } from '@/api/request'
 import { formatDateTime } from '@/utils/format'
-import type { VideoAdminDetail, VideoAdminItem } from '@/types/video'
+import type { CategoryItem } from '@/types/category'
+import type { VideoAdminDetail, VideoAdminItem, VideoSaveRequest } from '@/types/video'
 
 const route = useRoute()
 const router = useRouter()
@@ -114,6 +116,59 @@ function goVideoList(): void {
   void router.push('/admin/videos')
 }
 
+/* ---------- 在线上传页直接新建作品（避免「先去别处建壳」的割裂） ---------- */
+const createDialogVisible = ref(false)
+const createSubmitting = ref(false)
+const createError = ref('')
+const createForm = reactive<VideoSaveRequest>({
+  title: '',
+  description: '',
+  categoryId: null,
+})
+const categories = ref<CategoryItem[]>([])
+
+async function openCreateDialog(): Promise<void> {
+  createForm.title = ''
+  createForm.description = ''
+  createForm.categoryId = null
+  createError.value = ''
+  createDialogVisible.value = true
+  if (categories.value.length === 0) {
+    try {
+      categories.value = await listCategories()
+    } catch {
+      categories.value = []
+    }
+  }
+}
+
+async function submitCreateWork(): Promise<void> {
+  const title = (createForm.title ?? '').trim()
+  if (title.length === 0) {
+    createError.value = '请输入作品标题'
+    return
+  }
+  if (createSubmitting.value) return
+  createSubmitting.value = true
+  createError.value = ''
+  try {
+    const newVideoId = await createAdminVideo({
+      title,
+      description: (createForm.description ?? '').trim() || null,
+      categoryId: createForm.categoryId ?? null,
+    })
+    createDialogVisible.value = false
+    ElMessage.success('作品已创建，接下来选择视频文件上传')
+    await loadWorks()
+    // watch(selectedVideoId) 会同步地址栏并加载作品详情
+    selectedVideoId.value = newVideoId
+  } catch (error) {
+    createError.value = errorText(error, '创建作品失败')
+  } finally {
+    createSubmitting.value = false
+  }
+}
+
 // 切换作品时同步地址栏并加载详情；UploadPanel 以 selectedVideoId 为 key 重新挂载
 watch(selectedVideoId, (next) => {
   latestEpisodeId.value = null
@@ -144,8 +199,12 @@ onMounted(async () => {
       </div>
       <div class="q-page-actions">
         <button class="q-btn q-btn--ghost q-btn--sm" type="button" @click="goVideoList">
-          <QIcon name="arrow-left" :size="13" />
-          视频管理
+          <QIcon name="folder" :size="13" />
+          作品管理
+        </button>
+        <button class="q-btn q-btn--primary q-btn--sm" type="button" @click="openCreateDialog">
+          <QIcon name="plus" :size="13" />
+          新建作品
         </button>
       </div>
     </header>
@@ -155,7 +214,7 @@ onMounted(async () => {
       <section class="q-card q-card--pad work-card" aria-label="选择作品">
         <header class="work-card__head">
           <h2 class="q-section-title">选择作品</h2>
-          <span class="q-caption">一个作品可上传多个视频文件，自动成为第 1、2、3… 集</span>
+          <span class="q-caption">作品是视频的容器：一个作品可上传多个视频文件，自动成为第 1、2、3… 集</span>
         </header>
 
         <div class="work-card__body">
@@ -169,17 +228,21 @@ onMounted(async () => {
             <el-option
               v-for="item in videoOptions"
               :key="item.id"
-              :label="`${item.title}（#${item.id}）`"
+              :label="`${item.title}（#${item.id}）· ${item.episodeCount} 集`"
               :value="item.id"
             />
           </el-select>
 
+          <button class="q-btn q-btn--outline q-btn--sm" type="button" @click="openCreateDialog">
+            <QIcon name="plus" :size="13" />
+            新建作品
+          </button>
+          <button class="q-btn q-btn--ghost q-btn--sm" type="button" @click="goVideoList">
+            管理作品
+          </button>
+
           <template v-if="works.length === 0 && !worksLoading">
-            <span class="work-card__empty">还没有作品，先创建一个作品壳再上传视频</span>
-            <button class="q-btn q-btn--outline q-btn--sm" type="button" @click="goVideoList">
-              <QIcon name="plus" :size="13" />
-              去新建作品
-            </button>
+            <span class="work-card__empty">还没有作品：作品创建后即可为它上传视频</span>
           </template>
         </div>
 
@@ -272,14 +335,74 @@ onMounted(async () => {
             按「先建作品，再传文件」两步式操作：先创建作品壳，再回到本页选择作品上传视频。
           </p>
           <div class="q-empty__actions">
-            <button class="q-btn q-btn--outline q-btn--sm" type="button" @click="goVideoList">
+            <button class="q-btn q-btn--primary q-btn--sm" type="button" @click="openCreateDialog">
               <QIcon name="plus" :size="13" />
-              去视频管理新建作品
+              新建作品
+            </button>
+            <button class="q-btn q-btn--outline q-btn--sm" type="button" @click="goVideoList">
+              <QIcon name="folder" :size="13" />
+              作品管理
             </button>
           </div>
         </div>
       </section>
     </div>
+
+    <!-- 新建作品弹窗：上传页内直接建壳，创建后自动选中 -->
+    <el-dialog
+      v-model="createDialogVisible"
+      title="新建作品"
+      width="480px"
+      :close-on-click-modal="false"
+    >
+      <div class="create-form">
+        <div class="q-field">
+          <label class="q-field__label" for="create-work-title">作品标题</label>
+          <el-input
+            id="create-work-title"
+            v-model="createForm.title"
+            maxlength="255"
+            placeholder="例如：我的旅行记录"
+            @keyup.enter="submitCreateWork"
+          />
+        </div>
+        <div class="q-field">
+          <label class="q-field__label" for="create-work-desc">简介（选填）</label>
+          <el-input
+            id="create-work-desc"
+            v-model="createForm.description"
+            type="textarea"
+            :rows="3"
+            maxlength="500"
+            show-word-limit
+            placeholder="简要介绍作品内容"
+          />
+        </div>
+        <div class="q-field">
+          <label class="q-field__label">分类（选填）</label>
+          <el-select
+            v-model="createForm.categoryId"
+            placeholder="选择作品分类"
+            clearable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="category in categories"
+              :key="category.id"
+              :label="category.name"
+              :value="category.id"
+            />
+          </el-select>
+        </div>
+        <p v-if="createError.length > 0" class="create-form__error" role="alert">{{ createError }}</p>
+      </div>
+      <template #footer>
+        <el-button @click="createDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="createSubmitting" @click="submitCreateWork">
+          创建并选择
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -429,6 +552,18 @@ onMounted(async () => {
 /* ---------------- 空态 ---------------- */
 .empty-card {
   overflow: hidden;
+}
+
+/* ---------------- 新建作品弹窗 ---------------- */
+.create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.create-form__error {
+  font-size: var(--q-fs-12);
+  color: var(--q-error);
 }
 
 /* ---------------- 响应式 ---------------- */
