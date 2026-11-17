@@ -26,6 +26,9 @@ vidkeep 是自建视频站：管理员后台上传自有视频 → 后端 FFmpeg
 > `artplayer` / `hls.js` 用于 M2 播放器（`components/HlsPlayer.vue`），M1/M3 页面不直接引用。
 > 不引入 Tailwind、其他 UI 库或请求库。
 
+> 设计规范（颜色/字号/间距/断点/双端差异/组件约定）见 [docs/03-前端设计规范.md](../docs/03-前端设计规范.md)；
+> 新增页面前先读该文档，保证与现有前台/后台视觉一致。
+
 ## 本地运行
 
 ```bash
