@@ -15,6 +15,18 @@ export const UNAUTHORIZED_CODE = ERROR_CODE.UNAUTHORIZED
 export const LOGIN_PATH = '/admin/login'
 
 /**
+ * 站点访问口令未通过（F-18）时派发的全局事件名。
+ * 用自定义事件解耦 request 与 SiteGate 组件（request 在 api 层，不能反向依赖组件），
+ * SiteGate 监听后强制弹出口令框；口令错误提示仍由调用方按 BizError 处理。
+ */
+export const SITE_REQUIRED_EVENT = 'vidkeep:site-required'
+
+/** 通知口令门禁：公开接口返回 2004 时触发（不弹 alert、不跳登录页） */
+function notifySiteRequired(): void {
+  window.dispatchEvent(new CustomEvent(SITE_REQUIRED_EVENT))
+}
+
+/**
  * 业务错误：后端返回 code !== 0 时抛出，携带业务码与后端 message。
  * 调用方通过 isBizError 收窄后展示 message。
  */
@@ -79,6 +91,8 @@ service.interceptors.response.use(
     if (!isResult(payload)) return payload as AxiosResponse
     if (payload.code === ERROR_CODE.SUCCESS) return payload.data as AxiosResponse
     if (payload.code === UNAUTHORIZED_CODE) redirectToLogin()
+    // 站点开启口令但当前未通过：通知门禁弹窗，业务错误照常抛出
+    if (payload.code === ERROR_CODE.SITE_PASSWORD_REQUIRED) notifySiteRequired()
     return Promise.reject(
       new BizError(payload.code, payload.message.length > 0 ? payload.message : '请求失败'),
     )
@@ -89,6 +103,8 @@ service.interceptors.response.use(
       const payload: unknown = error.response?.data
       if (isResult(payload)) {
         if (payload.code === UNAUTHORIZED_CODE) redirectToLogin()
+        // 部分网关会把 2004 以非 2xx 状态返回，这里同样触发门禁事件
+        if (payload.code === ERROR_CODE.SITE_PASSWORD_REQUIRED) notifySiteRequired()
         return Promise.reject(
           new BizError(payload.code, payload.message.length > 0 ? payload.message : error.message),
         )

@@ -6,6 +6,7 @@ import { getPlayInfo, getPublicVideoDetail, reportPlayHistory } from '@/api/play
 import { isBizError } from '@/api/request'
 import HlsPlayer from '@/components/HlsPlayer.vue'
 import { usePlayerStore } from '@/stores/player'
+import { ERROR_CODE } from '@/types/api'
 import { formatDuration } from '@/utils/format'
 import type { PlayInfo } from '@/types/play'
 import type { TranscodeStatus } from '@/types/transcode'
@@ -28,6 +29,8 @@ const playInfo = ref<PlayInfo | null>(null)
 const currentEpisode = ref<PublicEpisodeItem | null>(null)
 const loading = ref(true)
 const errorMessage = ref('')
+/** 播放地址签名无效或过期（code 2005，F-17）：提示重新获取播放地址 */
+const playUrlExpired = ref(false)
 /** 续播起始位置（秒），0 表示从头播放 */
 const startPosition = ref(0)
 
@@ -108,6 +111,7 @@ function resetPlayerState(): void {
   detail.value = null
   currentEpisode.value = null
   errorMessage.value = ''
+  playUrlExpired.value = false
   startPosition.value = 0
   loadedVideoId.value = 0
   loadedEpisodeId.value = 0
@@ -200,7 +204,13 @@ async function load(): Promise<void> {
     )
   } catch (error) {
     if (isStale(requestVideoId, requestEpisodeId)) return
-    errorMessage.value = isBizError(error) ? error.message : '播放信息加载失败，请稍后重试'
+    // 2005：播放地址签名无效/过期（F-17），单独提示并允许重新获取
+    if (isBizError(error) && error.code === ERROR_CODE.PLAY_TOKEN_INVALID) {
+      playUrlExpired.value = true
+      errorMessage.value = '播放地址已过期，需要重新获取后继续播放。'
+    } else {
+      errorMessage.value = isBizError(error) ? error.message : '播放信息加载失败，请稍后重试'
+    }
   } finally {
     if (!isStale(requestVideoId, requestEpisodeId)) loading.value = false
   }
@@ -278,13 +288,15 @@ onBeforeUnmount(() => {
       <div class="player-loading__line player-loading__line--short" />
     </section>
 
-    <!-- 错误态 -->
+    <!-- 错误态（含播放地址过期 2005） -->
     <section v-else-if="errorMessage !== ''" class="player-state">
       <p class="player-state__icon" aria-hidden="true">!</p>
-      <h1 class="player-state__title">无法播放</h1>
+      <h1 class="player-state__title">{{ playUrlExpired ? '播放地址已过期' : '无法播放' }}</h1>
       <p class="player-state__desc">{{ errorMessage }}</p>
       <div class="player-state__actions">
-        <button type="button" class="player-state__button" @click="load">重新加载</button>
+        <button type="button" class="player-state__button" @click="load">
+          {{ playUrlExpired ? '重新获取播放地址' : '重新加载' }}
+        </button>
         <RouterLink class="player-state__link" :to="`/videos/${videoId}`">返回详情</RouterLink>
         <RouterLink class="player-state__link" to="/">返回首页</RouterLink>
       </div>

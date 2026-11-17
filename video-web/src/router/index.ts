@@ -73,6 +73,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/CategoryList.vue'),
         meta: { title: '分类管理', requiresAuth: true, requiresAdmin: true },
       },
+      {
+        path: 'logs',
+        name: 'admin-logs',
+        component: () => import('@/views/admin/OperationLogs.vue'),
+        meta: { title: '操作日志', requiresAuth: true, requiresAdmin: true },
+      },
     ],
   },
   {

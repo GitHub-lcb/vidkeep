@@ -1,9 +1,22 @@
 <script setup lang="ts">
 // 前台布局：品牌顶栏 + 首页导航 + 路由出口 + 页脚；详情页/播放页复用同一套外壳
+import SiteGate from '@/components/SiteGate.vue'
+
+/**
+ * 站点口令校验通过（F-18）：
+ * needsReload=true（刚输入口令通过）时整页刷新，让后续公开接口与媒体请求带上 HttpOnly Cookie；
+ * 站点未开启口令 / 本会话已通过时为 false，父组件无需动作，避免反复刷新。
+ */
+function handleSiteVerified(needsReload: boolean): void {
+  if (needsReload) window.location.reload()
+}
 </script>
 
 <template>
   <div class="portal">
+    <!-- 全屏口令门禁：开启口令时展示，未开启时静默放行 -->
+    <SiteGate @verified="handleSiteVerified" />
+
     <header class="portal-header">
       <div class="portal-header__inner">
         <RouterLink class="portal-brand" to="/" aria-label="vidkeep 首页">

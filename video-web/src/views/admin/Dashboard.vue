@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { listAdminVideos } from '@/api/video'
-import { listCategories } from '@/api/category'
+import { getAdminStats } from '@/api/admin'
 import { isBizError } from '@/api/request'
 import { useUserStore } from '@/stores/user'
+import { formatDuration } from '@/utils/format'
+import type { AdminStats } from '@/types/admin'
 
 interface StatItem {
   label: string
@@ -23,31 +24,57 @@ interface ModuleItem {
 const userStore = useUserStore()
 const displayName = computed<string>(() => userStore.displayName)
 
-const videoTotal = ref<number | null>(null)
-const categoryTotal = ref<number | null>(null)
+/** P1 站点统计（GET /api/admin/stats，F-15）；null 表示尚未加载成功 */
+const statsData = ref<AdminStats | null>(null)
 const loading = ref(false)
 const loadError = ref('')
 
-/** 统计卡片：视频总数与分类数走真实接口；转码中接口 M2 完成后接入 */
-const stats = computed<StatItem[]>(() => [
-  {
-    label: '视频总数',
-    value: videoTotal.value === null ? '--' : String(videoTotal.value),
-    hint: '全部作品（含未上线）',
-  },
-  {
-    label: '分类数',
-    value: categoryTotal.value === null ? '--' : String(categoryTotal.value),
-    hint: '按 sort 升序展示',
-  },
-  {
-    label: '转码中',
-    value: '--',
-    hint: '接口待 M2 完成后接入',
-  },
-])
+/** 大数字加千分位，避免播放次数过长难以辨认 */
+function formatCount(value: number): string {
+  return Number.isFinite(value) ? value.toLocaleString('zh-CN') : '--'
+}
 
+/** 统计卡片：视频/分类/转码中/播放次数/累计观看时长（P1 起统一走统计接口） */
+const stats = computed<StatItem[]>(() => {
+  const data = statsData.value
+  return [
+    {
+      label: '视频总数',
+      value: data === null ? '--' : formatCount(data.videoCount),
+      hint: '全部作品（含未上线）',
+    },
+    {
+      label: '分类数',
+      value: data === null ? '--' : formatCount(data.categoryCount),
+      hint: '分类管理维护',
+    },
+    {
+      label: '转码中',
+      value: data === null ? '--' : formatCount(data.transcodingCount),
+      hint: '排队与处理中的任务',
+    },
+    {
+      label: '播放次数',
+      value: data === null ? '--' : formatCount(data.totalViewCount),
+      hint: '前台累计播放',
+    },
+    {
+      label: '累计观看时长',
+      value: data === null ? '--' : formatDuration(data.totalWatchSeconds),
+      hint: '按播放进度累计',
+    },
+  ]
+})
+
+/** 里程碑进度：M0–M3 已完成，P1 增强功能已接入 */
 const modules: ModuleItem[] = [
+  {
+    code: 'M0',
+    title: '环境与登录',
+    desc: 'Spring Boot 骨架、JWT 登录鉴权与前后端工程化',
+    status: '已实现',
+    done: true,
+  },
   {
     code: 'M1',
     title: '分片上传与存储',
@@ -58,9 +85,9 @@ const modules: ModuleItem[] = [
   {
     code: 'M2',
     title: '转码流水线与播放',
-    desc: 'FFmpeg 探测与转码、HLS 输出；上传面板已接入转码进度轮询',
-    status: '联调中',
-    done: false,
+    desc: 'FFmpeg 探测与转码、HLS 输出与播放进度记忆',
+    status: '已实现',
+    done: true,
   },
   {
     code: 'M3',
@@ -69,27 +96,24 @@ const modules: ModuleItem[] = [
     status: '已实现',
     done: true,
   },
+  {
+    code: 'P1',
+    title: '增强与安全',
+    desc: '播放统计、播放地址签名、站点访问口令、操作日志',
+    status: '已接入',
+    done: true,
+  },
 ]
 
+/** 加载站点统计；失败进入可重试的错误态 */
 async function loadStats(): Promise<void> {
   loading.value = true
   loadError.value = ''
 
   try {
-    // size=1 只为拿 total，避免拉取整页数据
-    const page = await listAdminVideos({ page: 1, size: 1 })
-    videoTotal.value = page.total
+    statsData.value = await getAdminStats()
   } catch (error) {
-    loadError.value = isBizError(error) ? error.message : '加载视频统计失败'
-  }
-
-  try {
-    const categories = await listCategories()
-    categoryTotal.value = categories.length
-  } catch (error) {
-    if (loadError.value.length === 0) {
-      loadError.value = isBizError(error) ? error.message : '加载分类统计失败'
-    }
+    loadError.value = isBizError(error) ? error.message : '加载站点统计失败'
   } finally {
     loading.value = false
   }
@@ -105,7 +129,8 @@ onMounted(() => {
     <header class="dashboard-head">
       <h1 class="vk-page__title">你好，{{ displayName }}</h1>
       <p class="vk-page__subtitle">
-        欢迎回到 vidkeep 管理后台。M1 分片上传与 M3 管理页已接入，可在视频管理中新建作品、上传剧集并维护分类。
+        欢迎回到 vidkeep 管理后台。M0–M3 已完成，P1 的播放统计、播放地址签名、站点访问口令与操作日志已接入，
+        可在「操作日志」中追溯管理员操作。
       </p>
     </header>
 
@@ -117,7 +142,9 @@ onMounted(() => {
       show-icon
       :title="loadError"
     >
-      <el-button size="small" :loading="loading" @click="loadStats">重新加载</el-button>
+      <template #default>
+        <el-button size="small" :loading="loading" @click="loadStats">重新加载</el-button>
+      </template>
     </el-alert>
 
     <section v-loading="loading" class="vk-grid" aria-label="站点概览">

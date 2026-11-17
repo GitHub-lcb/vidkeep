@@ -7,14 +7,17 @@ import { useUserStore } from '@/stores/user'
 interface AdminMenuItem {
   index: string
   title: string
+  /** 未开放模块可置为禁用（当前全部开放） */
+  disabled?: boolean
 }
 
-// M1 上传与 M3 管理页已开放，菜单全部可点击
+// M1 上传与 M3 管理页已开放，P1 操作日志已接入，菜单全部可点击
 const MENU_ITEMS: AdminMenuItem[] = [
   { index: '/admin/dashboard', title: '仪表盘' },
   { index: '/admin/videos', title: '视频管理' },
   { index: '/admin/upload', title: '视频上传' },
   { index: '/admin/categories', title: '分类管理' },
+  { index: '/admin/logs', title: '操作日志', disabled: false },
 ]
 
 const route = useRoute()
@@ -76,7 +79,12 @@ async function handleLogout(): Promise<void> {
         text-color="#99a5b6"
         active-text-color="#ffffff"
       >
-        <el-menu-item v-for="item in MENU_ITEMS" :key="item.index" :index="item.index">
+        <el-menu-item
+          v-for="item in MENU_ITEMS"
+          :key="item.index"
+          :index="item.index"
+          :disabled="item.disabled === true"
+        >
           <span>{{ item.title }}</span>
         </el-menu-item>
       </el-menu>
@@ -98,6 +106,7 @@ async function handleLogout(): Promise<void> {
               v-for="item in compactMenuItems"
               :key="item.index"
               :index="item.index"
+              :disabled="item.disabled === true"
             >
               {{ item.title }}
             </el-menu-item>
