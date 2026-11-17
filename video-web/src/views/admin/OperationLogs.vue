@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import QIcon from '@/components/QIcon.vue'
 import { listOperationLogs } from '@/api/admin'
 import { isBizError } from '@/api/request'
 import { formatDateTime } from '@/utils/format'
@@ -112,213 +113,258 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="vk-page operation-logs">
-    <header class="page-head">
-      <div>
-        <h1 class="vk-page__title">操作日志</h1>
-        <p class="vk-page__subtitle">
+  <div class="q-page q-fade-in">
+    <header class="q-page-head">
+      <div class="q-page-head__main">
+        <h1 class="q-page-title">操作日志</h1>
+        <p class="q-page-desc">
           记录管理员的关键操作（上传、删除、转码、分类维护等），用于问题追溯与安全审计
         </p>
       </div>
+      <div class="q-page-actions">
+        <button
+          class="q-btn q-btn--outline q-btn--sm"
+          type="button"
+          :disabled="loading"
+          @click="loadLogs"
+        >
+          <QIcon name="refresh" :size="13" />
+          刷新
+        </button>
+      </div>
     </header>
 
-    <section class="filter-card">
-      <el-input
-        v-model="filters.username"
-        class="filter-card__input"
-        placeholder="按用户名筛选"
-        clearable
-        @keyup.enter="handleSearch"
-      />
-      <el-select v-model="filters.module" class="filter-card__select" placeholder="全部模块">
-        <el-option
-          v-for="item in MODULE_OPTIONS"
-          :key="item.value"
-          :label="item.label"
-          :value="item.value"
-        />
-      </el-select>
-      <el-button type="primary" @click="handleSearch">查询</el-button>
-      <el-button @click="handleReset">重置</el-button>
-    </section>
+    <div class="q-stack">
+      <!-- 筛选卡：单行 28px 紧凑控件 -->
+      <section class="q-card q-card--pad" aria-label="筛选条件">
+        <el-form class="filter-form" @submit.prevent="handleSearch">
+          <el-form-item label="用户名" class="filter-item">
+            <el-input
+              v-model="filters.username"
+              class="filter-input"
+              placeholder="按用户名筛选"
+              clearable
+              @keyup.enter="handleSearch"
+            />
+          </el-form-item>
 
-    <section class="table-card">
-      <el-table
-        v-loading="loading"
-        :data="list"
-        row-key="id"
-        empty-text="暂无操作日志"
-      >
-        <el-table-column label="时间" width="170">
-          <template #default="{ row }">
-            <span class="log-time">{{ formatDateTime(row.createdAt, 'YYYY-MM-DD HH:mm:ss') }}</span>
+          <el-form-item label="模块" class="filter-item">
+            <el-select v-model="filters.module" class="filter-select" placeholder="全部模块">
+              <el-option
+                v-for="item in MODULE_OPTIONS"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item class="filter-item filter-actions">
+            <el-button type="primary" @click="handleSearch">查询</el-button>
+            <el-button @click="handleReset">重置</el-button>
+          </el-form-item>
+        </el-form>
+      </section>
+
+      <!-- 日志表格卡 -->
+      <section class="q-card table-card" aria-label="操作日志列表">
+        <el-table v-loading="loading" :data="list" row-key="id">
+          <el-table-column label="时间" width="170">
+            <template #default="{ row }">
+              <span class="cell-time">{{ formatDateTime(row.createdAt, 'YYYY-MM-DD HH:mm:ss') }}</span>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="用户" width="116">
+            <template #default="{ row }">
+              <span class="log-user">{{ row.username }}</span>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="模块" width="96" align="center">
+            <template #default="{ row }">
+              <span class="q-tag" :class="`q-tag--${moduleTagType(row.module)}`">
+                {{ row.module }}
+              </span>
+            </template>
+          </el-table-column>
+
+          <el-table-column prop="action" label="动作" min-width="140" show-overflow-tooltip />
+
+          <el-table-column label="方法" width="96" align="center">
+            <template #default="{ row }">
+              <span class="q-tag method-tag" :class="`q-tag--${methodTagType(row.method)}`">
+                {{ row.method }}
+              </span>
+            </template>
+          </el-table-column>
+
+          <el-table-column prop="path" label="路径" min-width="200" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="q-mono log-path">{{ row.path }}</span>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="耗时" width="100" align="right">
+            <template #default="{ row }">
+              <span class="log-duration">{{ row.durationMs }} ms</span>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="详情" min-width="200" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="log-detail">{{ row.detail !== null && row.detail.length > 0 ? row.detail : '—' }}</span>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="操作 IP" width="136">
+            <template #default="{ row }">
+              <span class="q-mono log-ip">{{ row.ip !== null && row.ip.length > 0 ? row.ip : '—' }}</span>
+            </template>
+          </el-table-column>
+
+          <template #empty>
+            <div class="q-empty">
+              <div class="q-empty__stack">
+                <span class="q-empty__face"><QIcon name="logs" :size="18" /></span>
+              </div>
+              <p class="q-empty__title">暂无操作日志</p>
+              <p class="q-empty__desc">
+                管理员上传、删除、转码与分类维护等关键操作会自动记录在这里，用于问题追溯。
+              </p>
+            </div>
           </template>
-        </el-table-column>
+        </el-table>
 
-        <el-table-column label="用户" width="120">
-          <template #default="{ row }">
-            <span class="log-user">{{ row.username }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="模块" width="96" align="center">
-          <template #default="{ row }">
-            <el-tag size="small" :type="moduleTagType(row.module)" effect="light">
-              {{ row.module }}
-            </el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="action" label="动作" min-width="140" show-overflow-tooltip />
-
-        <el-table-column label="方法" width="92" align="center">
-          <template #default="{ row }">
-            <el-tag size="small" :type="methodTagType(row.method)" effect="plain">
-              {{ row.method }}
-            </el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="path" label="路径" min-width="220" show-overflow-tooltip>
-          <template #default="{ row }">
-            <span class="log-path">{{ row.path }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="耗时" width="100" align="right">
-          <template #default="{ row }">
-            <span class="log-duration">{{ row.durationMs }} ms</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="详情" min-width="220" show-overflow-tooltip>
-          <template #default="{ row }">
-            <span class="log-detail">{{ row.detail !== null && row.detail.length > 0 ? row.detail : '—' }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作 IP" width="140">
-          <template #default="{ row }">
-            <span class="log-ip">{{ row.ip !== null && row.ip.length > 0 ? row.ip : '—' }}</span>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <div class="log-pagination">
-        <el-pagination
-          :current-page="page"
-          :page-size="size"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="total"
-          layout="total, sizes, prev, pager, next, jumper"
-          background
-          @current-change="handlePageChange"
-          @size-change="handleSizeChange"
-        />
-      </div>
-    </section>
+        <div class="table-card__pager">
+          <el-pagination
+            :current-page="page"
+            :page-size="size"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="total"
+            background
+            layout="total, sizes, prev, pager, next, jumper"
+            @current-change="handlePageChange"
+            @size-change="handleSizeChange"
+          />
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
 <style scoped lang="scss">
 @use '../../styles/variables' as *;
 
-.page-head {
+/* ---------------- 筛选卡 ---------------- */
+.filter-form {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
   flex-wrap: wrap;
-}
-
-.filter-card {
-  display: flex;
+  gap: 8px 16px;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 18px;
-  padding: 16px 20px;
-  background: $vk-light-surface;
-  border: 1px solid $vk-light-border;
-  border-radius: 12px;
+
+  :deep(.el-form-item) {
+    display: flex;
+    align-items: center;
+    margin: 0;
+  }
+
+  :deep(.el-form-item__label) {
+    padding-right: 6px;
+    font-size: var(--q-fs-12);
+    line-height: var(--q-ctl-md);
+    color: var(--q-text-secondary);
+  }
 }
 
-.filter-card__input {
+.filter-input {
   width: 220px;
-
-  @include vk-mobile {
-    width: 100%;
-  }
 }
 
-.filter-card__select {
+.filter-select {
   width: 160px;
-
-  @include vk-mobile {
-    width: 100%;
-  }
 }
 
+.filter-actions {
+  margin-left: auto;
+}
+
+/* ---------------- 表格卡 ---------------- */
 .table-card {
-  margin-top: 16px;
-  padding: 4px 20px 16px;
-  background: $vk-light-surface;
-  border: 1px solid $vk-light-border;
-  border-radius: 12px;
-
-  @include vk-mobile {
-    padding: 4px 12px 14px;
-  }
-
-  :deep(.el-table) {
-    --el-table-border-color: #f0f2f6;
-    --el-table-header-bg-color: #fafbfc;
-    --el-table-header-text-color: #5b6678;
-  }
-
-  :deep(.el-table th.el-table__cell) {
-    font-size: 13px;
-    font-weight: 600;
-  }
+  padding: 4px 16px 12px;
 }
 
-.log-time {
-  font-size: 12px;
-  color: #5b6678;
+.table-card__pager {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12px;
+}
+
+.cell-time {
+  font-size: var(--q-fs-12);
+  color: var(--q-text-tertiary);
   font-variant-numeric: tabular-nums;
 }
 
 .log-user {
-  font-size: 13px;
-  font-weight: 600;
-  color: #1f2733;
+  font-size: var(--q-fs-13);
+  font-weight: 500;
+  color: var(--q-text);
 }
 
-.log-path,
-.log-detail {
-  font-size: 12.5px;
-  color: #4d5868;
+.method-tag {
+  font-family: var(--q-font-mono);
+  letter-spacing: 0.02em;
+}
+
+.log-path {
+  font-size: var(--q-fs-11);
+  color: var(--q-text-tertiary);
   word-break: break-all;
 }
 
 .log-duration {
-  font-size: 12px;
-  color: #7b8698;
+  font-size: var(--q-fs-12);
+  color: var(--q-text-tertiary);
   font-variant-numeric: tabular-nums;
+}
+
+.log-detail {
+  font-size: var(--q-fs-12);
+  color: var(--q-text-secondary);
+  word-break: break-all;
 }
 
 .log-ip {
-  font-size: 12px;
-  color: #4d5868;
-  font-variant-numeric: tabular-nums;
+  font-size: var(--q-fs-11);
+  color: var(--q-text-tertiary);
 }
 
-.log-pagination {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: 16px;
+/* ---------------- 响应式 ---------------- */
+@include q-mobile {
+  .filter-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
 
-  @include vk-mobile {
+  .filter-item {
+    align-items: flex-start;
+  }
+
+  .filter-input,
+  .filter-select {
+    width: 100%;
+  }
+
+  .filter-actions {
+    margin-left: 0;
+  }
+
+  .table-card {
+    padding: 4px 12px 12px;
+  }
+
+  .table-card__pager {
     justify-content: center;
   }
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import QIcon from '@/components/QIcon.vue'
 import { isBizError } from '@/api/request'
 import {
   checkUpload,
@@ -51,7 +52,7 @@ const CHUNK_MAX_RETRY = 2
 /** 转码进度轮询间隔（文档 4.5 / 7.4.2：每 2s 轮询） */
 const TRANSCODE_POLL_INTERVAL = 2000
 
-/** 转码状态 → 文案 / el-tag 类型 */
+/** 转码状态 → 文案 / 标签语义色（DONE=success、PROCESSING/PENDING=warning、FAILED=danger、NONE=info） */
 const TRANSCODE_STATUS_TEXT: Record<TranscodeStatus, string> = {
   NONE: '未开始',
   PENDING: '排队中',
@@ -62,7 +63,7 @@ const TRANSCODE_STATUS_TEXT: Record<TranscodeStatus, string> = {
 const TRANSCODE_STATUS_TYPE: Record<TranscodeStatus, TagType> = {
   NONE: 'info',
   PENDING: 'warning',
-  PROCESSING: 'primary',
+  PROCESSING: 'warning',
   DONE: 'success',
   FAILED: 'danger',
 }
@@ -617,14 +618,16 @@ onBeforeUnmount(() => {
 <template>
   <section class="upload-panel">
     <header class="upload-panel__head">
-      <div>
+      <div class="upload-panel__intro">
         <h3 class="upload-panel__title">上传视频文件</h3>
         <p class="upload-panel__hint">
           支持 mp4 / mov / mkv / avi / webm / flv，单文件不超过 10GB；自动分片并支持断点续传与秒传
         </p>
       </div>
-      <el-tag v-if="busy" type="warning" effect="plain">任务进行中</el-tag>
-      <el-tag v-else-if="phase === 'done'" type="success" effect="plain">已完成</el-tag>
+      <div class="upload-panel__state">
+        <span v-if="busy" class="q-tag q-tag--warning q-tag--dot">任务进行中</span>
+        <span v-else-if="phase === 'done'" class="q-tag q-tag--success q-tag--dot">已完成</span>
+      </div>
     </header>
 
     <!-- 隐藏的文件输入框：常驻 DOM，保证「重新选择」按钮也能触发 -->
@@ -643,6 +646,7 @@ onBeforeUnmount(() => {
       :class="{ 'upload-drop--active': isDragging }"
       role="button"
       tabindex="0"
+      aria-label="选择或拖拽视频文件"
       @click="triggerSelect"
       @keydown.enter="triggerSelect"
       @dragover.prevent="isDragging = true"
@@ -650,47 +654,58 @@ onBeforeUnmount(() => {
       @drop.prevent="handleDrop"
     >
       <span class="upload-drop__icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="26" height="26">
-          <path
-            d="M12 16V5m0 0L7.5 9.5M12 5l4.5 4.5M5 16.5V19h14v-2.5"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.6"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
+        <QIcon name="upload" :size="22" />
       </span>
       <span class="upload-drop__title">点击选择或拖拽视频文件到此处</span>
       <span class="upload-drop__sub">扩展名与大小会在本地校验，不会上传无效文件</span>
+      <span class="upload-drop__formats">mp4 · mov · mkv · avi · webm · flv</span>
     </div>
 
     <!-- 已选文件（待开始） -->
-    <div v-if="phase === 'idle' && file !== null" class="upload-file">
-      <div class="upload-file__meta">
-        <span class="upload-file__name">{{ fileName }}</span>
-        <span class="upload-file__size">{{ formatFileSize(fileSize) }}</span>
+    <div v-if="phase === 'idle' && file !== null" class="file-card">
+      <div class="file-card__main">
+        <span class="file-card__icon" aria-hidden="true"><QIcon name="film" :size="18" /></span>
+        <div class="file-card__meta">
+          <span class="file-card__name" :title="fileName">{{ fileName }}</span>
+          <span class="file-card__size">{{ formatFileSize(fileSize) }} · 待上传</span>
+        </div>
       </div>
-      <div class="upload-file__actions">
-        <el-button type="primary" @click="startUpload">开始上传</el-button>
-        <el-button @click="triggerSelect">重新选择</el-button>
-        <el-button text @click="resetTask">清除</el-button>
+      <div class="file-card__actions">
+        <button class="q-btn q-btn--primary q-btn--sm" type="button" @click="startUpload">
+          <QIcon name="upload" :size="13" />
+          开始上传
+        </button>
+        <button class="q-btn q-btn--outline q-btn--sm" type="button" @click="triggerSelect">
+          重新选择
+        </button>
+        <button class="q-btn q-btn--ghost q-btn--sm" type="button" @click="resetTask">清除</button>
       </div>
     </div>
 
     <!-- 指纹 / 分片 / 合并进度 -->
-    <div v-if="showUploadProgress" class="upload-progress">
-      <div class="upload-progress__head">
-        <span class="upload-progress__phase">{{ phaseText }}</span>
-        <span class="upload-progress__percent">{{ uploadPercent }}%</span>
+    <div v-if="showUploadProgress" class="progress-card">
+      <div class="progress-card__head">
+        <span class="progress-card__label">{{ phaseText }}</span>
+        <span class="progress-card__percent">{{ uploadPercent }}%</span>
       </div>
-      <el-progress
-        :percentage="uploadPercent"
-        :status="progressStatus"
-        :stroke-width="10"
-        :show-text="false"
-      />
-      <div class="upload-progress__meta">
+      <div
+        class="q-progress"
+        role="progressbar"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        :aria-valuenow="uploadPercent"
+      >
+        <div
+          class="q-progress__bar"
+          :class="{
+            'q-progress__bar--success': progressStatus === 'success',
+            'q-progress__bar--exception': progressStatus === 'exception',
+            'q-progress__bar--warning': progressStatus === 'warning',
+          }"
+          :style="{ width: `${uploadPercent}%` }"
+        />
+      </div>
+      <div class="progress-card__meta">
         <span v-if="phase === 'hashing'">正在读取抽样块并计算 SHA-256 指纹…</span>
         <span v-else-if="phase === 'uploading'">
           分片 {{ uploadedCount }} / {{ totalChunks }} · 速度 {{ speedText }}
@@ -701,45 +716,62 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- 上传失败 -->
-    <el-alert
-      v-if="phase === 'failed' && failureStage === 'upload'"
-      class="upload-alert"
-      type="error"
-      :closable="false"
-      show-icon
-      :title="uploadError || '上传失败'"
-    />
-    <div v-if="phase === 'failed' && failureStage === 'upload'" class="upload-actions">
-      <el-button type="primary" @click="handleRetryUpload">重新上传（自动续传）</el-button>
-      <el-button @click="resetTask">重新选择文件</el-button>
+    <div v-if="phase === 'failed' && failureStage === 'upload'" class="error-box" role="alert">
+      <QIcon name="alert" :size="14" />
+      <span>{{ uploadError || '上传失败' }}</span>
+    </div>
+    <div v-if="phase === 'failed' && failureStage === 'upload'" class="panel-actions">
+      <button class="q-btn q-btn--primary" type="button" @click="handleRetryUpload">
+        <QIcon name="refresh" :size="14" />
+        重新上传（自动续传）
+      </button>
+      <button class="q-btn q-btn--outline" type="button" @click="resetTask">重新选择文件</button>
     </div>
 
     <!-- 转码进度 -->
-    <div v-if="showTranscode" class="transcode">
-      <div class="transcode__head">
-        <div class="transcode__tags">
-          <el-tag v-if="phase === 'canceled'" type="info" effect="plain">已取消</el-tag>
-          <el-tag v-else :type="transcodeTagType" effect="plain">{{ transcodeStatusText }}</el-tag>
-          <el-tag
-            v-if="transcodeMode !== null && phase !== 'canceled'"
-            type="info"
-            effect="plain"
+    <div v-if="showTranscode" class="transcode-card">
+      <div class="transcode-card__head">
+        <div class="transcode-card__tags">
+          <span v-if="phase === 'canceled'" class="q-tag q-tag--info">已取消</span>
+          <span
+            v-else
+            class="q-tag"
+            :class="[
+              `q-tag--${transcodeTagType}`,
+              { 'q-tag--dot': transcodeStatus === 'PENDING' || transcodeStatus === 'PROCESSING' },
+            ]"
           >
+            {{ transcodeStatusText }}
+          </span>
+          <span v-if="transcodeMode !== null && phase !== 'canceled'" class="q-tag q-tag--info">
             {{ modeText }}
-          </el-tag>
-          <span v-if="episodeId !== null" class="transcode__episode">剧集 #{{ episodeId }}</span>
+          </span>
+          <span v-if="episodeId !== null" class="transcode-card__episode">剧集 #{{ episodeId }}</span>
         </div>
-        <span v-if="phase === 'transcoding'" class="transcode__percent">
+        <span v-if="phase === 'transcoding'" class="transcode-card__percent">
           {{ transcodeProgress }}%
         </span>
       </div>
-      <el-progress
-        :percentage="transcodeProgress"
-        :status="progressStatus"
-        :stroke-width="10"
-        :show-text="false"
-      />
-      <p class="transcode__desc">
+
+      <div
+        class="q-progress"
+        role="progressbar"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        :aria-valuenow="transcodeProgress"
+      >
+        <div
+          class="q-progress__bar"
+          :class="{
+            'q-progress__bar--success': progressStatus === 'success',
+            'q-progress__bar--exception': progressStatus === 'exception',
+            'q-progress__bar--warning': progressStatus === 'warning',
+          }"
+          :style="{ width: `${transcodeProgress}%` }"
+        />
+      </div>
+
+      <p class="transcode-card__desc">
         <template v-if="phase === 'transcoding'">
           后台正在转码为 HLS，每 2 秒自动刷新进度；可离开本页稍后回到视频编辑页查看。
         </template>
@@ -747,30 +779,36 @@ onBeforeUnmount(() => {
         <template v-else-if="phase === 'canceled'">转码已取消，可在视频编辑页重新上传或稍后处理。</template>
         <template v-else>{{ transcodeError || '转码失败，请根据失败原因排查后重试。' }}</template>
       </p>
-      <div class="transcode__actions">
-        <el-button
+
+      <div class="transcode-card__actions">
+        <button
           v-if="phase === 'transcoding'"
-          :loading="transcodeActionLoading"
+          class="q-btn q-btn--outline"
+          type="button"
+          :disabled="transcodeActionLoading"
           @click="handleCancelTranscode"
         >
-          取消转码
-        </el-button>
-        <el-button
+          {{ transcodeActionLoading ? '取消中…' : '取消转码' }}
+        </button>
+        <button
           v-if="phase === 'failed'"
-          type="primary"
-          :loading="transcodeActionLoading"
+          class="q-btn q-btn--primary"
+          type="button"
+          :disabled="transcodeActionLoading"
           @click="handleRetryTranscode"
         >
-          重试转码
-        </el-button>
-        <el-button
+          <QIcon name="refresh" :size="14" />
+          {{ transcodeActionLoading ? '重试中…' : '重试转码' }}
+        </button>
+        <button
           v-if="phase === 'done' || phase === 'canceled'"
-          type="primary"
-          plain
+          class="q-btn q-btn--primary"
+          type="button"
           @click="resetTask"
         >
+          <QIcon name="plus" :size="14" />
           继续上传下一集
-        </el-button>
+        </button>
       </div>
     </div>
   </section>
@@ -782,227 +820,284 @@ onBeforeUnmount(() => {
 .upload-panel {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
 }
 
+/* ---------------- 面板头 ---------------- */
 .upload-panel__head {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+}
+
+.upload-panel__intro {
+  min-width: 0;
 }
 
 .upload-panel__title {
-  font-size: 15px;
+  font-size: var(--q-fs-14);
   font-weight: 600;
-  color: #151c28;
+  line-height: var(--q-lh-20);
+  color: var(--q-text);
 }
 
 .upload-panel__hint {
-  margin-top: 6px;
-  font-size: 12px;
-  line-height: 1.6;
-  color: $vk-light-text-muted;
+  margin-top: 3px;
+  font-size: var(--q-fs-12);
+  line-height: var(--q-lh-18);
+  color: var(--q-text-tertiary);
 }
 
-/* 拖拽 / 点击选择区 */
-.upload-drop {
-  position: relative;
+.upload-panel__state {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  flex: none;
   gap: 8px;
-  padding: 36px 20px;
-  background: #fafbfc;
-  border: 1px dashed #d4dae3;
-  border-radius: 12px;
-  cursor: pointer;
-  transition:
-    border-color 0.2s ease,
-    background-color 0.2s ease;
-
-  &:hover,
-  &--active {
-    background: #f5f8ff;
-    border-color: $vk-accent;
-  }
-
-  &:focus-visible {
-    outline: 2px solid rgba(91, 141, 239, 0.5);
-    outline-offset: 2px;
-  }
+  align-items: center;
 }
 
 .upload-panel__file-input {
   display: none;
 }
 
+/* ---------------- 拖拽 / 点击选择区 ---------------- */
+.upload-drop {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  padding: 34px 20px;
+  cursor: pointer;
+  background: var(--q-fill-quaternary);
+  border: 1px dashed var(--q-border-tertiary);
+  border-radius: var(--q-r-xl);
+  transition: background-color var(--q-dur-fast) var(--q-ease),
+    border-color var(--q-dur-fast) var(--q-ease);
+
+  &:hover,
+  &--active {
+    background: var(--q-primary-bg);
+    border-color: var(--q-primary-border);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--q-primary-border);
+  }
+}
+
 .upload-drop__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 52px;
-  height: 52px;
-  color: $vk-accent;
-  background: rgba(91, 141, 239, 0.1);
-  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
+  color: var(--q-primary-text);
+  background: var(--q-bg-container);
+  border-radius: var(--q-r-xl);
+  box-shadow: 0 0 0 1px var(--q-border-tertiary) inset;
 }
 
 .upload-drop__title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1f2733;
+  font-size: var(--q-fs-13);
+  font-weight: 500;
+  color: var(--q-text);
 }
 
 .upload-drop__sub {
-  font-size: 12px;
-  color: $vk-light-text-muted;
+  font-size: var(--q-fs-12);
+  color: var(--q-text-tertiary);
 }
 
-/* 已选文件 */
-.upload-file {
+.upload-drop__formats {
+  margin-top: 4px;
+  font-family: var(--q-font-mono);
+  font-size: var(--q-fs-11);
+  letter-spacing: 0.02em;
+  color: var(--q-text-quaternary);
+}
+
+/* ---------------- 已选文件卡 ---------------- */
+.file-card {
   display: flex;
   flex-wrap: wrap;
+  gap: 12px;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 14px 16px;
-  background: #f7f9fc;
-  border: 1px solid $vk-light-border;
-  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--q-fill-tertiary);
+  border-radius: var(--q-r-xl);
 }
 
-.upload-file__meta {
+.file-card__main {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  gap: 10px;
+  align-items: center;
   min-width: 0;
 }
 
-.upload-file__name {
+.file-card__icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--q-primary-text);
+  background: var(--q-bg-container);
+  border-radius: var(--q-r-lg);
+  box-shadow: 0 0 0 1px var(--q-border-quaternary) inset;
+}
+
+.file-card__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.file-card__name {
   max-width: 460px;
   overflow: hidden;
-  font-size: 14px;
-  font-weight: 600;
-  color: #1f2733;
-  white-space: nowrap;
+  font-size: var(--q-fs-13);
+  font-weight: 500;
+  color: var(--q-text);
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-  @include vk-mobile {
+.file-card__size {
+  font-size: var(--q-fs-12);
+  color: var(--q-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.file-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---------------- 进度卡 ---------------- */
+.progress-card,
+.transcode-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: var(--q-fill-quaternary);
+  border-radius: var(--q-r-xl);
+  box-shadow: 0 0 0 1px var(--q-border-quaternary) inset;
+}
+
+.progress-card__head,
+.transcode-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.progress-card__label {
+  font-size: var(--q-fs-13);
+  font-weight: 500;
+  color: var(--q-text);
+}
+
+.progress-card__percent,
+.transcode-card__percent {
+  font-size: var(--q-fs-13);
+  font-weight: 600;
+  color: var(--q-primary-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-card__meta {
+  font-size: var(--q-fs-12);
+  line-height: var(--q-lh-18);
+  color: var(--q-text-tertiary);
+}
+
+/* 4px 自绘进度条：默认主色，按状态切换语义色 */
+.q-progress__bar {
+  background: var(--q-primary);
+
+  &--success {
+    background: var(--q-success);
+  }
+
+  &--exception {
+    background: var(--q-error);
+  }
+
+  &--warning {
+    background: var(--q-warning);
+  }
+}
+
+/* ---------------- 上传失败 ---------------- */
+.error-box {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: var(--q-fs-12);
+  line-height: var(--q-lh-18);
+  color: var(--q-error);
+  background: var(--q-error-bg);
+  border-radius: var(--q-r-lg);
+}
+
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---------------- 转码卡 ---------------- */
+.transcode-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.transcode-card__episode {
+  font-size: var(--q-fs-12);
+  color: var(--q-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.transcode-card__desc {
+  font-size: var(--q-fs-12);
+  line-height: var(--q-lh-18);
+  color: var(--q-text-secondary);
+}
+
+.transcode-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---------------- 响应式 ---------------- */
+@include q-mobile {
+  .upload-drop {
+    padding: 24px 12px;
+  }
+
+  .file-card__name {
     max-width: 100%;
   }
-}
 
-.upload-file__size {
-  font-size: 12px;
-  color: $vk-light-text-muted;
-}
-
-.upload-file__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-/* 上传进度 */
-.upload-progress {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-  background: #ffffff;
-  border: 1px solid $vk-light-border;
-  border-radius: 12px;
-
-  :deep(.el-progress-bar__outer) {
-    background: #eef1f6;
+  .file-card__actions,
+  .panel-actions,
+  .transcode-card__actions {
+    width: 100%;
   }
-}
-
-.upload-progress__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.upload-progress__phase {
-  font-size: 13px;
-  font-weight: 600;
-  color: #1f2733;
-}
-
-.upload-progress__percent {
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  color: $vk-accent;
-}
-
-.upload-progress__meta {
-  font-size: 12px;
-  color: $vk-light-text-muted;
-}
-
-.upload-alert {
-  border-radius: 10px;
-}
-
-.upload-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-/* 转码卡片 */
-.transcode {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  background: #ffffff;
-  border: 1px solid $vk-light-border;
-  border-radius: 12px;
-
-  :deep(.el-progress-bar__outer) {
-    background: #eef1f6;
-  }
-}
-
-.transcode__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.transcode__tags {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.transcode__episode {
-  font-size: 12px;
-  color: $vk-light-text-muted;
-}
-
-.transcode__percent {
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  color: $vk-accent;
-}
-
-.transcode__desc {
-  font-size: 12px;
-  line-height: 1.65;
-  color: $vk-light-text-muted;
-}
-
-.transcode__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
 }
 </style>

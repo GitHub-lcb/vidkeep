@@ -2,10 +2,16 @@
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import AppLogo from '@/components/AppLogo.vue'
+import QIcon from '@/components/QIcon.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 import { isBizError } from '@/api/request'
 import { useUserStore } from '@/stores/user'
 import type { LoginRequest } from '@/types/auth'
 
+/**
+ * 管理后台登录（Qoder 规范）：左侧品牌说明 + 右侧表单，36px 控件与 16px 圆角。
+ */
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
@@ -32,7 +38,6 @@ function resolveRedirect(): string {
 }
 
 async function handleSubmit(): Promise<void> {
-  // loading 同步置位，防止回车与按钮点击重复提交
   if (loading.value || formRef.value === undefined) return
   loading.value = true
 
@@ -53,241 +58,233 @@ async function handleSubmit(): Promise<void> {
 
 <template>
   <div class="login">
+    <header class="login-bar">
+      <AppLogo size="sm" />
+      <ThemeToggle />
+    </header>
+
     <section class="login-card">
-      <div class="login-brand">
-        <span class="login-brand__mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="17" height="17">
-            <path d="M9 7l8 5-8 5z" fill="currentColor" />
-          </svg>
-        </span>
-        <span class="login-brand__name">vidkeep</span>
-      </div>
+      <aside class="login-aside">
+        <p class="login-eyebrow">VIDKEEP ADMIN</p>
+        <h1 class="login-headline">回到你的视频库</h1>
+        <p class="login-lead">
+          上传自有视频，自动转码为 HLS，管理作品、剧集与分类；播放统计与操作审计一屏掌握。
+        </p>
+        <ul class="login-points">
+          <li><QIcon name="check" :size="14" /> 分片上传 · 断点续传 · 秒传</li>
+          <li><QIcon name="check" :size="14" /> REMUX 优先的自动转码</li>
+          <li><QIcon name="check" :size="14" /> 播放地址签名与访问口令</li>
+        </ul>
+        <p class="login-footnote">vidkeep · 自有内容视频站</p>
+      </aside>
 
-      <h1 class="login-title">管理后台登录</h1>
-      <p class="login-subtitle">使用管理员账号继续</p>
+      <div class="login-panel">
+        <h2 class="login-title">登录管理后台</h2>
+        <p class="login-subtitle">使用管理员账号继续</p>
 
-      <el-form
-        ref="formRef"
-        class="login-form"
-        :model="form"
-        :rules="rules"
-        label-position="top"
-        @submit.prevent="handleSubmit"
-      >
-        <el-form-item label="用户名" prop="username">
-          <el-input
-            v-model="form.username"
-            placeholder="请输入用户名"
-            autocomplete="username"
-            size="large"
-            clearable
-          />
-        </el-form-item>
-
-        <el-form-item label="密码" prop="password">
-          <el-input
-            v-model="form.password"
-            type="password"
-            placeholder="请输入密码"
-            autocomplete="current-password"
-            size="large"
-            show-password
-            @keyup.enter="handleSubmit"
-          />
-        </el-form-item>
-
-        <el-button
-          class="login-submit"
-          type="primary"
-          size="large"
-          native-type="submit"
-          :loading="loading"
+        <el-form
+          ref="formRef"
+          class="login-form"
+          :model="form"
+          :rules="rules"
+          label-position="top"
+          @submit.prevent="handleSubmit"
         >
-          {{ loading ? '登录中…' : '登录' }}
-        </el-button>
-      </el-form>
+          <el-form-item label="用户名" prop="username">
+            <el-input
+              v-model="form.username"
+              size="large"
+              placeholder="请输入用户名"
+              autocomplete="username"
+            />
+          </el-form-item>
 
-      <p class="login-footnote">vidkeep · 自建视频站管理端</p>
+          <el-form-item label="密码" prop="password">
+            <el-input
+              v-model="form.password"
+              type="password"
+              size="large"
+              placeholder="请输入密码"
+              autocomplete="current-password"
+              show-password
+              @keyup.enter="handleSubmit"
+            />
+          </el-form-item>
+
+          <button
+            class="q-btn q-btn--primary q-btn--lg q-btn--block login-submit"
+            type="submit"
+            :disabled="loading"
+          >
+            {{ loading ? '登录中…' : '登录' }}
+          </button>
+        </el-form>
+
+        <RouterLink class="login-back" to="/">
+          <QIcon name="arrow-left" :size="13" />
+          返回前台
+        </RouterLink>
+      </div>
     </section>
   </div>
 </template>
 
 <style scoped lang="scss">
-@use '../../styles/variables' as *;
-
 .login {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  padding: 40px 20px;
-  overflow: hidden;
-  background:
-    radial-gradient(900px 520px at 50% -8%, rgba(91, 141, 239, 0.22), transparent 62%),
-    radial-gradient(760px 420px at 110% 108%, rgba(91, 141, 239, 0.12), transparent 60%),
-    linear-gradient(165deg, #070b11 0%, #0c121c 48%, #080d15 100%);
+  padding: 56px 20px 40px;
+  background: var(--q-bg-layout);
+}
 
-  // 极淡网格纹理，弱化纯色背景的空洞感
-  &::before {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    content: '';
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-    background-size: 64px 64px;
-    -webkit-mask-image: radial-gradient(620px 420px at 50% 42%, #000000 18%, transparent 78%);
-    mask-image: radial-gradient(620px 420px at 50% 42%, #000000 18%, transparent 78%);
-  }
-
-  @include vk-mobile {
-    padding: 24px 16px;
-  }
+.login-bar {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .login-card {
-  position: relative;
-  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
   width: 100%;
-  max-width: 400px;
-  padding: 36px 34px 30px;
-  background: linear-gradient(180deg, rgba(23, 31, 44, 0.94), rgba(15, 21, 31, 0.96));
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  box-shadow:
-    0 24px 80px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(6px);
+  max-width: 860px;
+  overflow: hidden;
+  background: var(--q-bg-container);
+  border-radius: var(--q-r-2xl);
+  box-shadow: var(--q-shadow-pop);
+}
 
-  @include vk-mobile {
-    padding: 28px 22px 24px;
-    border-radius: 14px;
+.login-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 40px 34px;
+  background: var(--q-primary-bg);
+}
+
+.login-eyebrow {
+  font-size: var(--q-fs-10);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  color: var(--q-primary-text);
+}
+
+.login-headline {
+  margin-top: 4px;
+  font-size: var(--q-fs-24);
+  font-weight: 600;
+  line-height: var(--q-lh-32);
+  letter-spacing: -0.02em;
+  color: var(--q-text);
+}
+
+.login-lead {
+  font-size: var(--q-fs-12);
+  line-height: var(--q-lh-20);
+  color: var(--q-text-secondary);
+}
+
+.login-points {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+
+  li {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: var(--q-fs-12);
+    color: var(--q-text-secondary);
+  }
+
+  svg {
+    color: var(--q-primary);
   }
 }
 
-.login-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+.login-footnote {
+  margin-top: auto;
+  font-size: var(--q-fs-11);
+  color: var(--q-text-tertiary);
 }
 
-.login-brand__mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  color: #ffffff;
-  background: $vk-accent;
-  border-radius: 9px;
-  box-shadow: 0 6px 18px rgba(91, 141, 239, 0.35);
-}
-
-.login-brand__name {
-  font-size: 18px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  color: #f3f6fb;
+.login-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 40px 38px 32px;
 }
 
 .login-title {
-  margin-top: 26px;
-  font-size: 20px;
+  font-size: var(--q-fs-18);
   font-weight: 600;
-  color: #eef2f8;
+  line-height: var(--q-lh-24);
 }
 
 .login-subtitle {
   margin-top: 4px;
-  font-size: 13px;
-  color: #7f8b9d;
+  font-size: var(--q-fs-12);
+  color: var(--q-text-tertiary);
 }
 
 .login-form {
-  margin-top: 26px;
+  margin-top: 24px;
 
   :deep(.el-form-item) {
-    margin-bottom: 20px;
+    margin-bottom: 16px;
   }
 
   :deep(.el-form-item__label) {
-    padding-bottom: 6px;
-    font-size: 13px;
-    line-height: 1.2;
-    color: #9aa6b8;
-  }
-
-  :deep(.el-form-item__error) {
-    padding-top: 4px;
-    font-size: 12px;
-    color: #f08181;
+    padding-bottom: 4px;
   }
 
   :deep(.el-input__wrapper) {
-    padding: 2px 12px;
-    background: rgba(255, 255, 255, 0.04);
-    border-radius: 9px;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.09) inset;
-    transition:
-      box-shadow 0.2s ease,
-      background-color 0.2s ease;
-  }
-
-  :deep(.el-input__wrapper:hover) {
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16) inset;
-  }
-
-  :deep(.el-input__wrapper.is-focus) {
-    background: rgba(255, 255, 255, 0.06);
-    box-shadow:
-      0 0 0 1px #5b8def inset,
-      0 0 0 3px rgba(91, 141, 239, 0.14);
+    padding: 0 12px;
+    border-radius: var(--q-r-control);
   }
 
   :deep(.el-input__inner) {
-    height: 40px;
-    color: $vk-text;
-  }
-
-  :deep(.el-input__inner::placeholder) {
-    color: #5f6b7d;
-  }
-
-  :deep(.el-input__inner:-webkit-autofill) {
-    -webkit-text-fill-color: $vk-text;
-    -webkit-box-shadow: 0 0 0 1000px rgba(20, 27, 38, 1) inset;
+    height: var(--q-ctl-lg);
   }
 }
 
-.login-form .login-submit {
-  width: 100%;
-  height: 44px;
-  margin-top: 4px;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  background: linear-gradient(180deg, #5f8ff2, #4a76d6);
-  border: none;
-  border-radius: 9px;
-  box-shadow: 0 10px 24px rgba(74, 118, 214, 0.32);
+.login-submit {
+  margin-top: 6px;
 }
 
-.login-form .login-submit:hover,
-.login-form .login-submit:focus {
-  background: linear-gradient(180deg, #6d9af5, #4f7cdd);
+.login-back {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  align-self: flex-start;
+  margin-top: 20px;
+  font-size: var(--q-fs-12);
+  color: var(--q-text-tertiary);
+
+  &:hover {
+    color: var(--q-text);
+  }
 }
 
-.login-form .login-submit:active {
-  background: linear-gradient(180deg, #4a76d6, #436bc4);
-}
+@media (max-width: 820px) {
+  .login-card {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 400px;
+  }
 
-.login-footnote {
-  margin-top: 22px;
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  text-align: center;
-  color: #5f6b7d;
+  .login-aside {
+    display: none;
+  }
+
+  .login-panel {
+    padding: 30px 24px 24px;
+  }
 }
 </style>

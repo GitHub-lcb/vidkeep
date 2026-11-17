@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import QIcon from '@/components/QIcon.vue'
 import UploadPanel from '@/components/UploadPanel.vue'
 import { getAdminVideo, listAdminVideos } from '@/api/video'
 import { isBizError } from '@/api/request'
@@ -133,213 +134,289 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="vk-page video-upload">
-    <header class="page-head">
-      <div>
-        <h1 class="vk-page__title">视频上传</h1>
-        <p class="vk-page__subtitle">
+  <div class="q-page q-fade-in">
+    <header class="q-page-head">
+      <div class="q-page-head__main">
+        <h1 class="q-page-title">视频上传</h1>
+        <p class="q-page-desc">
           选择作品后上传视频文件，系统自动分片上传、合并并转码为 HLS；支持秒传与断点续传
         </p>
       </div>
-      <el-button @click="goVideoList">返回视频管理</el-button>
+      <div class="q-page-actions">
+        <button class="q-btn q-btn--ghost q-btn--sm" type="button" @click="goVideoList">
+          <QIcon name="arrow-left" :size="13" />
+          视频管理
+        </button>
+      </div>
     </header>
 
-    <!-- 选择作品 -->
-    <section class="select-card">
-      <div class="select-card__head">
-        <h2 class="section-title">选择作品</h2>
-        <span class="section-hint">一个作品可上传多个视频文件，自动成为第 1、2、3… 集</span>
-      </div>
-      <div class="select-card__body">
-        <el-select
-          v-model="selectedVideoId"
-          class="work-select"
-          filterable
-          :loading="worksLoading"
-          placeholder="请选择要上传视频的作品"
-        >
-          <el-option
-            v-for="item in videoOptions"
-            :key="item.id"
-            :label="`${item.title}（#${item.id}）`"
-            :value="item.id"
-          />
-        </el-select>
+    <div class="q-stack">
+      <!-- 作品选择卡：下拉 200 条 + 当前作品信息 -->
+      <section class="q-card q-card--pad work-card" aria-label="选择作品">
+        <header class="work-card__head">
+          <h2 class="q-section-title">选择作品</h2>
+          <span class="q-caption">一个作品可上传多个视频文件，自动成为第 1、2、3… 集</span>
+        </header>
 
-        <template v-if="works.length === 0 && !worksLoading">
-          <span class="select-card__empty">还没有作品，先创建一个作品壳再上传视频</span>
-          <el-button type="primary" plain size="small" @click="goVideoList">去新建作品</el-button>
-        </template>
-      </div>
-    </section>
+        <div class="work-card__body">
+          <el-select
+            v-model="selectedVideoId"
+            class="work-select"
+            filterable
+            :loading="worksLoading"
+            placeholder="请选择要上传视频的作品"
+          >
+            <el-option
+              v-for="item in videoOptions"
+              :key="item.id"
+              :label="`${item.title}（#${item.id}）`"
+              :value="item.id"
+            />
+          </el-select>
 
-    <!-- 当前作品信息 -->
-    <section v-if="currentVideo !== null" v-loading="detailLoading" class="info-card">
-      <div class="info-card__main">
-        <h2 class="info-card__title">{{ currentVideo.title }}</h2>
-        <div class="info-card__meta">
-          <el-tag :type="currentVideo.status === 1 ? 'success' : 'info'" effect="plain">
-            {{ currentVideo.status === 1 ? '已上线' : '已下线' }}
-          </el-tag>
-          <span>{{ currentVideo.categoryName ?? '未分类' }}</span>
-          <span>{{ currentVideo.episodeCount }} 个剧集</span>
-          <span>创建于 {{ formatDateTime(currentVideo.createdAt) }}</span>
+          <template v-if="works.length === 0 && !worksLoading">
+            <span class="work-card__empty">还没有作品，先创建一个作品壳再上传视频</span>
+            <button class="q-btn q-btn--outline q-btn--sm" type="button" @click="goVideoList">
+              <QIcon name="plus" :size="13" />
+              去新建作品
+            </button>
+          </template>
         </div>
-      </div>
-      <div class="info-card__actions">
-        <el-button size="small" @click="refreshCurrentVideo">刷新集数</el-button>
-        <el-button size="small" type="primary" plain @click="goVideoDetail">编辑作品</el-button>
-      </div>
-    </section>
 
-    <!-- 上传面板：切换作品时通过 key 重新挂载，避免旧任务串状态 -->
-    <section v-if="selectedVideoId !== null" class="panel-card">
-      <UploadPanel
-        :key="selectedVideoId"
-        :video-id="selectedVideoId"
-        @completed="handleCompleted"
-        @transcode-done="handleTranscodeDone"
-      />
-    </section>
+        <!-- 当前作品信息 -->
+        <div v-if="currentVideo !== null" v-loading="detailLoading" class="work-meta">
+          <div class="work-meta__main">
+            <div class="work-meta__title-row">
+              <h3 class="work-meta__title">{{ currentVideo.title }}</h3>
+              <span
+                class="q-tag"
+                :class="currentVideo.status === 1 ? 'q-tag--success' : 'q-tag--info'"
+              >
+                {{ currentVideo.status === 1 ? '已上线' : '已下线' }}
+              </span>
+            </div>
+            <div class="work-meta__row">
+              <span>
+                <QIcon name="folder" :size="13" />
+                {{ currentVideo.categoryName ?? '未分类' }}
+              </span>
+              <span>
+                <QIcon name="film" :size="13" />
+                {{ currentVideo.episodeCount }} 个剧集
+              </span>
+              <span>
+                <QIcon name="clock" :size="13" />
+                创建于 {{ formatDateTime(currentVideo.createdAt) }}
+              </span>
+            </div>
+          </div>
+          <div class="work-meta__actions">
+            <button
+              class="q-btn q-btn--outline q-btn--sm"
+              type="button"
+              :disabled="detailLoading"
+              @click="refreshCurrentVideo"
+            >
+              <QIcon name="refresh" :size="13" />
+              刷新集数
+            </button>
+            <button class="q-btn q-btn--outline q-btn--sm" type="button" @click="goVideoDetail">
+              <QIcon name="edit" :size="13" />
+              编辑作品
+            </button>
+          </div>
+        </div>
+      </section>
 
-    <!-- 转码完成后的后续动作 -->
-    <section v-if="transcodeDone" class="done-card">
-      <div class="done-card__text">
-        <strong>转码完成</strong>
-        <span>剧集已可播放，可前往视频详情继续上传下一集，或直接打开前台播放页预览。</span>
-      </div>
-      <div class="done-card__actions">
-        <el-button @click="goVideoDetail">前往视频详情</el-button>
-        <el-button type="primary" @click="openPlayer">前台播放</el-button>
-      </div>
-    </section>
+      <!-- 上传面板卡：切换作品时通过 key 重新挂载，避免旧任务串状态 -->
+      <section v-if="selectedVideoId !== null" class="q-card q-card--pad panel-card" aria-label="上传面板">
+        <UploadPanel
+          :key="selectedVideoId"
+          :video-id="selectedVideoId"
+          @completed="handleCompleted"
+          @transcode-done="handleTranscodeDone"
+        />
+      </section>
 
-    <!-- 未选择作品时的空态 -->
-    <section v-else-if="selectedVideoId === null && works.length === 0 && !worksLoading" class="empty-card">
-      <p class="empty-card__title">还没有可上传的作品</p>
-      <p class="empty-card__desc">按「先建作品，再传文件」两步式操作：先创建作品壳，再回到本页选择作品上传视频。</p>
-      <el-button type="primary" @click="goVideoList">去视频管理新建作品</el-button>
-    </section>
+      <!-- 转码完成后的后续动作 -->
+      <section v-if="transcodeDone" class="done-card" role="status">
+        <div class="done-card__main">
+          <span class="done-card__icon"><QIcon name="check" :size="15" /></span>
+          <div class="done-card__text">
+            <strong>转码完成</strong>
+            <span>剧集已可播放，可前往视频详情继续上传下一集，或直接打开前台播放页预览。</span>
+          </div>
+        </div>
+        <div class="done-card__actions">
+          <button class="q-btn q-btn--outline q-btn--sm" type="button" @click="goVideoDetail">
+            前往视频详情
+          </button>
+          <button class="q-btn q-btn--primary q-btn--sm" type="button" @click="openPlayer">
+            <QIcon name="play" :size="13" />
+            前台播放
+          </button>
+        </div>
+      </section>
+
+      <!-- 未选择作品时的空态 -->
+      <section
+        v-else-if="selectedVideoId === null && works.length === 0 && !worksLoading"
+        class="q-card empty-card"
+      >
+        <div class="q-empty">
+          <div class="q-empty__stack">
+            <span class="q-empty__face"><QIcon name="upload" :size="18" /></span>
+          </div>
+          <p class="q-empty__title">还没有可上传的作品</p>
+          <p class="q-empty__desc">
+            按「先建作品，再传文件」两步式操作：先创建作品壳，再回到本页选择作品上传视频。
+          </p>
+          <div class="q-empty__actions">
+            <button class="q-btn q-btn--outline q-btn--sm" type="button" @click="goVideoList">
+              <QIcon name="plus" :size="13" />
+              去视频管理新建作品
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
 <style scoped lang="scss">
 @use '../../styles/variables' as *;
 
-.page-head {
+/* ---------------- 作品选择卡 ---------------- */
+.work-card__head {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
   flex-wrap: wrap;
-}
-
-.section-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #151c28;
-}
-
-.section-hint {
-  font-size: 12px;
-  color: $vk-light-text-muted;
-}
-
-.select-card,
-.info-card,
-.panel-card,
-.done-card,
-.empty-card {
-  margin-top: 20px;
-  padding: 20px;
-  background: $vk-light-surface;
-  border: 1px solid $vk-light-border;
-  border-radius: 12px;
-}
-
-.select-card__head {
-  display: flex;
+  gap: 8px 12px;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
 }
 
-.select-card__body {
+.work-card__body {
   display: flex;
-  align-items: center;
-  gap: 12px;
   flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
   margin-top: 14px;
-}
-
-.select-card__empty {
-  font-size: 12px;
-  color: $vk-light-text-muted;
 }
 
 .work-select {
   width: 360px;
+}
 
-  @include vk-mobile {
-    width: 100%;
+.work-card__empty {
+  font-size: var(--q-fs-12);
+  color: var(--q-text-tertiary);
+}
+
+.work-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-top: 14px;
+  margin-top: 14px;
+  border-top: 1px solid var(--q-border-quaternary);
+}
+
+.work-meta__main {
+  min-width: 0;
+}
+
+.work-meta__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.work-meta__title {
+  font-size: var(--q-fs-16);
+  font-weight: 600;
+  line-height: var(--q-lh-22);
+  color: var(--q-text);
+}
+
+.work-meta__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 6px;
+  font-size: var(--q-fs-12);
+  color: var(--q-text-tertiary);
+
+  > span {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  svg {
+    color: var(--q-text-quaternary);
   }
 }
 
-.info-card {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.info-card__title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #151c28;
-}
-
-.info-card__meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 8px;
-  font-size: 12px;
-  color: $vk-light-text-muted;
-}
-
-.info-card__actions {
+.work-meta__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
+/* ---------------- 上传面板卡 ---------------- */
 .panel-card {
-  padding: 20px;
+  padding: 16px;
 }
 
+/* ---------------- 转码完成提示 ---------------- */
 .done-card {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  background: #f4faf5;
-  border-color: #cfe8d4;
+  padding: 12px 16px;
+  background: var(--q-success-bg);
+  border-radius: var(--q-r-surface);
+  box-shadow: 0 0 0 1px var(--q-success-border) inset;
+}
+
+.done-card__main {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.done-card__icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--q-success);
+  background: var(--q-bg-container);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--q-success-border) inset;
 }
 
 .done-card__text {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
-  color: #3c5a45;
+  gap: 2px;
+  font-size: var(--q-fs-12);
+  line-height: var(--q-lh-18);
+  color: var(--q-text-secondary);
 
   strong {
-    font-size: 14px;
-    color: #1f7a3f;
+    font-size: var(--q-fs-13);
+    font-weight: 600;
+    color: var(--q-success);
   }
 }
 
@@ -349,22 +426,24 @@ onMounted(async () => {
   gap: 8px;
 }
 
+/* ---------------- 空态 ---------------- */
 .empty-card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
+  overflow: hidden;
 }
 
-.empty-card__title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #1f2733;
-}
+/* ---------------- 响应式 ---------------- */
+@include q-mobile {
+  .work-select {
+    width: 100%;
+  }
 
-.empty-card__desc {
-  font-size: 13px;
-  line-height: 1.7;
-  color: $vk-light-text-muted;
+  .work-meta__actions,
+  .done-card__actions {
+    width: 100%;
+  }
+
+  .panel-card {
+    padding: 12px;
+  }
 }
 </style>

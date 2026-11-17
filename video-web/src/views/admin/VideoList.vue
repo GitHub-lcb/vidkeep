@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import QIcon from '@/components/QIcon.vue'
 import { createAdminVideo, deleteAdminVideo, listAdminVideos, updateAdminVideoStatus } from '@/api/video'
 import { listCategories } from '@/api/category'
 import { isBizError } from '@/api/request'
@@ -208,158 +209,206 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="vk-page video-list">
-    <header class="page-head">
-      <div>
-        <h1 class="vk-page__title">视频管理</h1>
-        <p class="vk-page__subtitle">管理作品基础信息、上下架状态，并为作品上传剧集文件</p>
+  <div class="q-page q-fade-in">
+    <header class="q-page-head">
+      <div class="q-page-head__main">
+        <h1 class="q-page-title">视频管理</h1>
+        <p class="q-page-desc">管理作品基础信息、上下架状态，并为作品上传剧集文件</p>
       </div>
-      <el-button type="primary" @click="openCreateDialog">新建作品</el-button>
+      <div class="q-page-actions">
+        <button
+          class="q-btn q-btn--outline q-btn--sm"
+          type="button"
+          :disabled="loading"
+          @click="loadVideos"
+        >
+          <QIcon name="refresh" :size="13" />
+          刷新
+        </button>
+        <button class="q-btn q-btn--primary q-btn--sm" type="button" @click="openCreateDialog">
+          <QIcon name="plus" :size="14" />
+          新建作品
+        </button>
+      </div>
     </header>
 
-    <section class="filter-card">
-      <el-form class="filter-form" @submit.prevent="handleSearch">
-        <el-form-item label="标题">
-          <el-input
-            v-model="search.title"
-            class="filter-input"
-            placeholder="按标题模糊搜索"
-            clearable
-            @keyup.enter="handleSearch"
-          />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="search.status" class="filter-select">
-            <el-option label="全部" :value="ALL_OPTION" />
-            <el-option label="已上线" :value="1" />
-            <el-option label="已下线" :value="0" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="分类">
-          <el-select v-model="search.categoryId" class="filter-select">
-            <el-option label="全部分类" :value="ALL_OPTION" />
-            <el-option
-              v-for="category in categories"
-              :key="category.id"
-              :label="category.name"
-              :value="category.id"
+    <div class="q-stack">
+      <!-- 筛选卡：单行 28px 紧凑控件 -->
+      <section class="q-card q-card--pad" aria-label="筛选条件">
+        <el-form class="filter-form" @submit.prevent="handleSearch">
+          <el-form-item label="标题" class="filter-item">
+            <el-input
+              v-model="search.title"
+              class="filter-input"
+              placeholder="按标题模糊搜索"
+              clearable
+              @keyup.enter="handleSearch"
             />
-          </el-select>
-        </el-form-item>
-        <el-form-item class="filter-actions">
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </section>
+          </el-form-item>
 
-    <section class="table-card">
-      <el-table
-        v-loading="loading"
-        :data="list"
-        row-key="id"
-        empty-text="暂无视频作品，点击右上角「新建作品」开始"
-      >
-        <el-table-column label="封面" width="96">
-          <template #default="{ row }">
-            <el-image
-              v-if="row.coverUrl"
-              class="video-cover"
-              :src="row.coverUrl"
-              fit="cover"
-              :preview-src-list="[row.coverUrl]"
-              preview-teleported
-            />
-            <div v-else class="video-cover video-cover--empty">
-              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                <path
-                  d="M4 6h16v12H4zM4 10h16M9 6v4M15 6v4"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.4"
-                  stroke-linejoin="round"
+          <el-form-item label="状态" class="filter-item">
+            <el-select v-model="search.status" class="filter-select">
+              <el-option label="全部" :value="ALL_OPTION" />
+              <el-option label="已上线" :value="1" />
+              <el-option label="已下线" :value="0" />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item label="分类" class="filter-item">
+            <el-select v-model="search.categoryId" class="filter-select">
+              <el-option label="全部分类" :value="ALL_OPTION" />
+              <el-option
+                v-for="category in categories"
+                :key="category.id"
+                :label="category.name"
+                :value="category.id"
+              />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item class="filter-item filter-actions">
+            <el-button type="primary" @click="handleSearch">查询</el-button>
+            <el-button @click="handleReset">重置</el-button>
+          </el-form-item>
+        </el-form>
+      </section>
+
+      <!-- 表格卡 -->
+      <section class="q-card table-card" aria-label="视频列表">
+        <el-table v-loading="loading" :data="list" row-key="id">
+          <el-table-column label="封面" width="96">
+            <template #default="{ row }">
+              <el-image
+                v-if="row.coverUrl"
+                class="video-cover"
+                :src="row.coverUrl"
+                fit="cover"
+                :preview-src-list="[row.coverUrl]"
+                preview-teleported
+              />
+              <div v-else class="video-cover video-cover--empty">
+                <QIcon name="film" :size="14" />
+              </div>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="标题" min-width="220">
+            <template #default="{ row }">
+              <div class="video-cell">
+                <span class="video-cell__title">{{ row.title }}</span>
+                <span v-if="row.description" class="video-cell__desc">{{ row.description }}</span>
+              </div>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="分类" width="110">
+            <template #default="{ row }">
+              <span v-if="row.categoryName">{{ row.categoryName }}</span>
+              <span v-else class="cell-muted">未分类</span>
+            </template>
+          </el-table-column>
+
+          <el-table-column prop="episodeCount" label="集数" width="80" align="center" />
+
+          <el-table-column prop="viewCount" label="播放量" width="96" align="right">
+            <template #default="{ row }">
+              <span class="cell-time">{{ row.viewCount }}</span>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="状态" width="132" align="center">
+            <template #default="{ row }">
+              <div class="status-cell">
+                <span class="q-tag" :class="row.status === 1 ? 'q-tag--success' : 'q-tag--info'">
+                  {{ row.status === 1 ? '已上线' : '已下线' }}
+                </span>
+                <el-switch
+                  :model-value="row.status === 1"
+                  :loading="statusUpdatingId === row.id"
+                  :disabled="statusUpdatingId !== null"
+                  @change="handleToggleStatus(row)"
                 />
-              </svg>
+              </div>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="创建时间" width="150">
+            <template #default="{ row }">
+              <span class="cell-time">{{ formatDateTime(row.createdAt) }}</span>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="操作" width="184" fixed="right">
+            <template #default="{ row }">
+              <div class="row-actions">
+                <button class="q-btn q-btn--text q-btn--sm" type="button" @click="goEdit(row)">
+                  <QIcon name="edit" :size="13" />
+                  编辑
+                </button>
+                <button class="q-btn q-btn--text q-btn--sm" type="button" @click="goUpload(row)">
+                  <QIcon name="upload" :size="13" />
+                  上传
+                </button>
+                <button
+                  class="q-btn q-btn--text q-btn--sm row-actions__danger"
+                  type="button"
+                  @click="handleDelete(row)"
+                >
+                  <QIcon name="trash" :size="13" />
+                  删除
+                </button>
+              </div>
+            </template>
+          </el-table-column>
+
+          <template #empty>
+            <div class="q-empty">
+              <div class="q-empty__stack">
+                <span class="q-empty__face"><QIcon name="film" :size="18" /></span>
+              </div>
+              <p class="q-empty__title">还没有视频作品</p>
+              <p class="q-empty__desc">
+                点击右上角「新建作品」创建作品壳，再为它上传视频文件；上传后会自动转码为 HLS。
+              </p>
+              <div class="q-empty__actions">
+                <button class="q-btn q-btn--outline q-btn--sm" type="button" @click="openCreateDialog">
+                  <QIcon name="plus" :size="13" />
+                  新建作品
+                </button>
+              </div>
             </div>
           </template>
-        </el-table-column>
+        </el-table>
 
-        <el-table-column label="标题" min-width="220">
-          <template #default="{ row }">
-            <div class="video-title">
-              <span class="video-title__main">{{ row.title }}</span>
-              <span v-if="row.description" class="video-title__desc">{{ row.description }}</span>
-            </div>
-          </template>
-        </el-table-column>
+        <div class="table-card__pager">
+          <el-pagination
+            :current-page="search.page"
+            :page-size="search.size"
+            :page-sizes="[10, 20, 50]"
+            :total="total"
+            background
+            layout="total, sizes, prev, pager, next, jumper"
+            @current-change="handlePageChange"
+            @size-change="handleSizeChange"
+          />
+        </div>
+      </section>
+    </div>
 
-        <el-table-column label="分类" width="110">
-          <template #default="{ row }">
-            <span v-if="row.categoryName">{{ row.categoryName }}</span>
-            <span v-else class="vk-muted">未分类</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="episodeCount" label="集数" width="80" align="center" />
-        <el-table-column prop="viewCount" label="播放量" width="96" align="right" />
-
-        <el-table-column label="状态" width="96" align="center">
-          <template #default="{ row }">
-            <el-switch
-              :model-value="row.status === 1"
-              inline-prompt
-              active-text="上线"
-              inactive-text="下线"
-              :width="56"
-              :loading="statusUpdatingId === row.id"
-              :disabled="statusUpdatingId !== null"
-              @change="handleToggleStatus(row)"
-            />
-          </template>
-        </el-table-column>
-
-        <el-table-column label="创建时间" width="150">
-          <template #default="{ row }">
-            <span class="video-time">{{ formatDateTime(row.createdAt) }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作" width="208" fixed="right">
-          <template #default="{ row }">
-            <div class="row-actions">
-              <el-button text type="primary" size="small" @click="goEdit(row)">编辑</el-button>
-              <el-button text type="primary" size="small" @click="goUpload(row)">上传</el-button>
-              <el-button text type="danger" size="small" @click="handleDelete(row)">删除</el-button>
-            </div>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <div class="pager">
-        <el-pagination
-          :current-page="search.page"
-          :page-size="search.size"
-          :page-sizes="[10, 20, 50]"
-          :total="total"
-          background
-          layout="total, sizes, prev, pager, next, jumper"
-          @current-change="handlePageChange"
-          @size-change="handleSizeChange"
-        />
-      </div>
-    </section>
-
+    <!-- 新建作品弹窗 -->
     <el-dialog
       v-model="createDialogVisible"
       title="新建作品"
       width="480px"
       :close-on-click-modal="false"
     >
+      <p class="dialog-hint">先创建作品壳，随后进入编辑页上传视频文件并自动转码。</p>
       <el-form
         ref="createFormRef"
+        class="dialog-form"
         :model="createForm"
         :rules="createRules"
-        label-width="64px"
+        label-position="top"
         @submit.prevent="submitCreate"
       >
         <el-form-item label="标题" prop="title">
@@ -402,137 +451,109 @@ onMounted(() => {
 <style scoped lang="scss">
 @use '../../styles/variables' as *;
 
-.page-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.filter-card {
-  margin-top: 20px;
-  padding: 18px 20px 2px;
-  background: $vk-light-surface;
-  border: 1px solid $vk-light-border;
-  border-radius: 12px;
-}
-
+/* ---------------- 筛选卡 ---------------- */
 .filter-form {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 8px;
+  gap: 8px 16px;
+  align-items: center;
 
   :deep(.el-form-item) {
-    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    margin: 0;
   }
 
   :deep(.el-form-item__label) {
-    font-size: 13px;
-    color: $vk-light-text-muted;
-  }
-
-  @include vk-mobile {
-    flex-direction: column;
-
-    :deep(.el-form-item) {
-      margin-right: 0;
-    }
+    padding-right: 6px;
+    font-size: var(--q-fs-12);
+    line-height: var(--q-ctl-md);
+    color: var(--q-text-secondary);
   }
 }
 
 .filter-input {
   width: 220px;
-
-  @include vk-mobile {
-    width: 100%;
-  }
 }
 
 .filter-select {
   width: 140px;
-
-  @include vk-mobile {
-    width: 100%;
-  }
 }
 
 .filter-actions {
   margin-left: auto;
-
-  @include vk-mobile {
-    margin-left: 0;
-  }
 }
 
+/* ---------------- 表格卡 ---------------- */
 .table-card {
-  margin-top: 16px;
-  padding: 4px 20px 16px;
-  background: $vk-light-surface;
-  border: 1px solid $vk-light-border;
-  border-radius: 12px;
+  padding: 4px 16px 12px;
+}
 
-  @include vk-mobile {
-    padding: 4px 12px 14px;
-  }
-
-  :deep(.el-table) {
-    --el-table-border-color: #f0f2f6;
-    --el-table-header-bg-color: #fafbfc;
-    --el-table-header-text-color: #5b6678;
-  }
-
-  :deep(.el-table th.el-table__cell) {
-    font-size: 13px;
-    font-weight: 600;
-  }
+.table-card__pager {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12px;
 }
 
 .video-cover {
   display: block;
   width: 72px;
-  height: 42px;
+  height: 40px;
   overflow: hidden;
-  border-radius: 6px;
+  background: var(--q-fill-tertiary);
+  border-radius: var(--q-r-md);
+  box-shadow: 0 0 0 1px var(--q-border-quaternary) inset;
 }
 
 .video-cover--empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a3adbb;
-  background: #f0f2f6;
+  color: var(--q-text-quaternary);
 }
 
-.video-title {
+.video-cell {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
 
-.video-title__main {
+.video-cell__title {
   overflow: hidden;
-  font-size: 13px;
-  font-weight: 600;
-  color: #1f2733;
-  white-space: nowrap;
+  font-size: var(--q-fs-13);
+  font-weight: 500;
+  color: var(--q-text);
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.video-title__desc {
+.video-cell__desc {
   display: -webkit-box;
   overflow: hidden;
-  font-size: 12px;
-  line-height: 1.4;
-  color: $vk-light-text-muted;
+  font-size: var(--q-fs-11);
+  line-height: var(--q-lh-16);
+  color: var(--q-text-tertiary);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 1;
 }
 
-.video-time {
-  font-size: 12px;
-  color: #5b6678;
+.cell-muted {
+  font-size: var(--q-fs-12);
+  color: var(--q-text-tertiary);
+}
+
+.cell-time {
+  font-size: var(--q-fs-12);
+  color: var(--q-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.status-cell {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
 }
 
 .row-actions {
@@ -541,9 +562,58 @@ onMounted(() => {
   gap: 2px;
 }
 
-.pager {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: 16px;
+.row-actions__danger {
+  color: var(--q-error);
+}
+
+.row-actions__danger:not(:disabled):hover {
+  color: var(--q-error-hover);
+}
+
+/* ---------------- 弹窗 ---------------- */
+.dialog-hint {
+  margin-bottom: 12px;
+  font-size: var(--q-fs-12);
+  line-height: var(--q-lh-18);
+  color: var(--q-text-tertiary);
+}
+
+.dialog-form {
+  :deep(.el-select) {
+    width: 100%;
+  }
+
+  :deep(.el-form-item:last-child) {
+    margin-bottom: 0;
+  }
+}
+
+/* ---------------- 响应式 ---------------- */
+@include q-mobile {
+  .filter-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-item {
+    align-items: flex-start;
+  }
+
+  .filter-input,
+  .filter-select {
+    width: 100%;
+  }
+
+  .filter-actions {
+    margin-left: 0;
+  }
+
+  .table-card {
+    padding: 4px 12px 12px;
+  }
+
+  .table-card__pager {
+    justify-content: center;
+  }
 }
 </style>

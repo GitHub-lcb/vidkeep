@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import QIcon from '@/components/QIcon.vue'
 import { createCategory, deleteCategory, listCategories, updateCategory } from '@/api/category'
 import { isBizError } from '@/api/request'
 import { ERROR_CODE } from '@/types/api'
@@ -129,55 +130,105 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="vk-page category-list">
-    <header class="page-head">
-      <div>
-        <h1 class="vk-page__title">分类管理</h1>
-        <p class="vk-page__subtitle">分类用于前台筛选与作品归类，列表按排序值升序展示</p>
+  <div class="q-page q-fade-in">
+    <header class="q-page-head">
+      <div class="q-page-head__main">
+        <h1 class="q-page-title">分类管理</h1>
+        <p class="q-page-desc">分类用于前台筛选与作品归类，列表按排序值升序展示</p>
       </div>
-      <el-button type="primary" @click="openCreate">新增分类</el-button>
+      <div class="q-page-actions">
+        <button
+          class="q-btn q-btn--outline q-btn--sm"
+          type="button"
+          :disabled="loading"
+          @click="loadCategories"
+        >
+          <QIcon name="refresh" :size="13" />
+          刷新
+        </button>
+        <button class="q-btn q-btn--primary q-btn--sm" type="button" @click="openCreate">
+          <QIcon name="plus" :size="14" />
+          新增分类
+        </button>
+      </div>
     </header>
 
-    <el-alert
-      class="category-tip"
-      type="info"
-      :closable="false"
-      show-icon
-      title="删除限制：分类下存在视频时无法删除，需先把作品移到其他分类或删除作品。"
-    />
+    <div class="q-stack">
+      <!-- 删除限制提示 -->
+      <div class="list-tip" role="note">
+        <span class="list-tip__icon"><QIcon name="alert" :size="14" /></span>
+        <span>删除限制：分类下存在视频时无法删除，需先把作品移到其他分类或删除作品。</span>
+      </div>
 
-    <section class="table-card">
-      <el-table
-        v-loading="loading"
-        :data="list"
-        row-key="id"
-        empty-text="暂无分类，点击右上角「新增分类」添加"
-      >
-        <el-table-column prop="name" label="分类名称" min-width="200">
-          <template #default="{ row }">
-            <span class="category-name">{{ row.name }}</span>
+      <!-- 表格卡 -->
+      <section class="q-card table-card" aria-label="分类列表">
+        <el-table v-loading="loading" :data="list" row-key="id">
+          <el-table-column label="分类名称" min-width="240">
+            <template #default="{ row }">
+              <div class="category-cell">
+                <span class="category-cell__icon"><QIcon name="folder" :size="14" /></span>
+                <span class="category-cell__name">{{ row.name }}</span>
+              </div>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="排序" width="120" align="center">
+            <template #default="{ row }">
+              <span class="q-tag q-tag--outline category-sort">{{ row.sort }}</span>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="创建时间" width="170">
+            <template #default="{ row }">
+              <span class="cell-time">
+                {{ row.createdAt ? formatDateTime(row.createdAt) : '--' }}
+              </span>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="操作" width="152" fixed="right">
+            <template #default="{ row }">
+              <div class="row-actions">
+                <button class="q-btn q-btn--text q-btn--sm" type="button" @click="openEdit(row)">
+                  <QIcon name="edit" :size="13" />
+                  编辑
+                </button>
+                <button
+                  class="q-btn q-btn--text q-btn--sm row-actions__danger"
+                  type="button"
+                  @click="handleDelete(row)"
+                >
+                  <QIcon name="trash" :size="13" />
+                  删除
+                </button>
+              </div>
+            </template>
+          </el-table-column>
+
+          <template #empty>
+            <div class="q-empty">
+              <div class="q-empty__stack">
+                <span class="q-empty__face"><QIcon name="folder" :size="18" /></span>
+              </div>
+              <p class="q-empty__title">还没有分类</p>
+              <p class="q-empty__desc">分类用于前台筛选与作品归类，先添加一个分类，再把作品归入其中。</p>
+              <div class="q-empty__actions">
+                <button class="q-btn q-btn--outline q-btn--sm" type="button" @click="openCreate">
+                  <QIcon name="plus" :size="13" />
+                  新增分类
+                </button>
+              </div>
+            </div>
           </template>
-        </el-table-column>
+        </el-table>
 
-        <el-table-column prop="sort" label="排序" width="100" align="center" />
+        <p v-if="!loading && list.length > 0" class="table-card__foot">
+          共 {{ list.length }} 个分类 · 按排序值升序
+        </p>
+      </section>
+    </div>
 
-        <el-table-column label="创建时间" width="170">
-          <template #default="{ row }">
-            <span class="category-time">
-              {{ row.createdAt ? formatDateTime(row.createdAt) : '--' }}
-            </span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作" width="150" fixed="right">
-          <template #default="{ row }">
-            <el-button text type="primary" size="small" @click="openEdit(row)">编辑</el-button>
-            <el-button text type="danger" size="small" @click="handleDelete(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </section>
-
+    <!-- 新增 / 编辑分类弹窗 -->
     <el-dialog
       v-model="dialogVisible"
       :title="dialogTitle"
@@ -187,9 +238,10 @@ onMounted(() => {
     >
       <el-form
         ref="formRef"
+        class="dialog-form"
         :model="form"
         :rules="rules"
-        label-width="72px"
+        label-position="top"
         @submit.prevent="submitForm"
       >
         <el-form-item label="名称" prop="name">
@@ -201,8 +253,10 @@ onMounted(() => {
           />
         </el-form-item>
         <el-form-item label="排序" prop="sort">
-          <el-input-number v-model="form.sort" :min="0" :max="9999" :step="1" />
-          <span class="sort-hint">数值越小越靠前</span>
+          <div class="sort-field">
+            <el-input-number v-model="form.sort" :min="0" :max="9999" :step="1" />
+            <span class="sort-field__hint">数值越小越靠前</span>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -216,56 +270,112 @@ onMounted(() => {
 <style scoped lang="scss">
 @use '../../styles/variables' as *;
 
-.page-head {
+/* ---------------- 提示条 ---------------- */
+.list-tip {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: var(--q-fs-12);
+  line-height: var(--q-lh-18);
+  color: var(--q-text-secondary);
+  background: var(--q-fill-tertiary);
+  border-radius: var(--q-r-lg);
 }
 
-.category-tip {
-  margin-top: 18px;
-  border-radius: 10px;
+.list-tip__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--q-info);
 }
 
+/* ---------------- 表格卡 ---------------- */
 .table-card {
-  margin-top: 16px;
-  padding: 4px 20px 16px;
-  background: $vk-light-surface;
-  border: 1px solid $vk-light-border;
-  border-radius: 12px;
+  padding: 4px 16px 12px;
+}
 
-  @include vk-mobile {
-    padding: 4px 12px 14px;
-  }
+.table-card__foot {
+  padding-top: 10px;
+  font-size: var(--q-fs-11);
+  color: var(--q-text-tertiary);
+}
 
-  :deep(.el-table) {
-    --el-table-border-color: #f0f2f6;
-    --el-table-header-bg-color: #fafbfc;
-    --el-table-header-text-color: #5b6678;
-  }
+.category-cell {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
 
-  :deep(.el-table th.el-table__cell) {
-    font-size: 13px;
-    font-weight: 600;
+.category-cell__icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--q-primary-text);
+  background: var(--q-primary-bg);
+  border-radius: var(--q-r-md);
+}
+
+.category-cell__name {
+  overflow: hidden;
+  font-size: var(--q-fs-13);
+  font-weight: 500;
+  color: var(--q-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-sort {
+  min-width: 28px;
+  font-variant-numeric: tabular-nums;
+  color: var(--q-text-secondary);
+}
+
+.cell-time {
+  font-size: var(--q-fs-12);
+  color: var(--q-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.row-actions__danger {
+  color: var(--q-error);
+}
+
+.row-actions__danger:not(:disabled):hover {
+  color: var(--q-error-hover);
+}
+
+/* ---------------- 弹窗 ---------------- */
+.dialog-form {
+  :deep(.el-form-item:last-child) {
+    margin-bottom: 0;
   }
 }
 
-.category-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: #1f2733;
+.sort-field {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
-.category-time {
-  font-size: 12px;
-  color: #5b6678;
+.sort-field__hint {
+  font-size: var(--q-fs-11);
+  color: var(--q-text-tertiary);
 }
 
-.sort-hint {
-  margin-left: 10px;
-  font-size: 12px;
-  color: $vk-light-text-muted;
+/* ---------------- 响应式 ---------------- */
+@include q-mobile {
+  .table-card {
+    padding: 4px 12px 12px;
+  }
 }
 </style>
