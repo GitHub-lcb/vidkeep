@@ -71,6 +71,15 @@ def http_status(base: str, path: str) -> tuple[int, str]:
         return response.status, response.read(512).decode("utf-8", "replace")
 
 
+def http_code(base: str, path: str) -> int:
+    """返回 HTTP 状态码，不抛异常（用于断言 403/404）。"""
+    try:
+        with urllib.request.urlopen(base + path, timeout=30) as response:
+            return response.status
+    except urllib.error.HTTPError as error:
+        return error.code
+
+
 def sample_fingerprint(path: str) -> str:
     """与文档 7.1.2 / 前端 utils/hash.ts 一致的抽样指纹。"""
     size = os.path.getsize(path)
@@ -250,10 +259,41 @@ def main() -> int:
     print(f"      play.url={play['url']}, duration={play['duration']}, lastPosition={play['lastPosition']}")
     if play["lastPosition"] != 0:
         raise SystemExit("首次播放 lastPosition 应为 0")
-    status_code, body = http_status(args.base, play["url"])
-    if status_code != 200 or "#EXTM3U" not in body:
-        raise SystemExit(f"HLS master 不可访问：HTTP {status_code}, body={body[:100]}")
-    print("      HLS master.m3u8 可访问（#EXTM3U）")
+
+    print("      [P1] 校验播放地址签名与 HLS 全链路改写")
+    if "expire=" not in play["url"] or "token=" not in play["url"]:
+        raise SystemExit(f"播放地址未带签名：{play['url']}")
+    unsigned_code = http_code(args.base, f"/hls/{episode_id}/master.m3u8")
+    if unsigned_code != 403:
+        raise SystemExit(f"未签名访问 master.m3u8 应返回 403，实际 {unsigned_code}")
+    status_code, master_body = http_status(args.base, play["url"])
+    if status_code != 200 or "#EXTM3U" not in master_body:
+        raise SystemExit(f"签名 master 不可访问：HTTP {status_code}, body={master_body[:100]}")
+    child_lines = [line.strip() for line in master_body.splitlines() if line.strip() and not line.startswith("#")]
+    if not child_lines:
+        raise SystemExit("master.m3u8 中没有子列表")
+    print(f"      master 子列表已改写签名：{child_lines[0][:80]}...")
+    child_code, child_body = http_status(args.base, child_lines[0])
+    if child_code != 200 or "#EXTM3U" not in child_body:
+        raise SystemExit(f"子列表不可访问：HTTP {child_code}")
+    segment_lines = [line.strip() for line in child_body.splitlines() if line.strip() and not line.startswith("#")]
+    if not segment_lines:
+        raise SystemExit("子列表中没有切片")
+    print(f"      切片地址已改写签名：{segment_lines[0][:80]}...")
+    segment_code, _ = http_status(args.base, segment_lines[0])
+    if segment_code != 200:
+        raise SystemExit(f"切片不可访问：HTTP {segment_code}")
+
+    print("      [P1] 校验播放量自增与后台统计")
+    detail_before = http_json(args.base, "GET", f"/api/admin/videos/{video_id}", token=token)
+    view_count = detail_before.get("viewCount") or 0
+    stats = http_json(args.base, "GET", "/api/admin/stats", token=token)
+    print(f"      viewCount={view_count}, totalViewCount={stats['totalViewCount']}, "
+          f"watchSeconds={stats['totalWatchSeconds']}, transcoding={stats['transcodingCount']}")
+    if view_count < 1:
+        raise SystemExit("播放后 viewCount 未自增")
+    if stats["totalViewCount"] < 1:
+        raise SystemExit("统计接口 totalViewCount 异常")
 
     http_json(args.base, "POST", "/api/public/play/history",
               body={"deviceId": device_id, "videoId": video_id, "episodeId": episode_id,
@@ -276,13 +316,19 @@ def main() -> int:
         raise SystemExit(f"封面不可访问：{cover_url} -> HTTP {cover_status}")
     print(f"      自动封面 ok：{cover_url}")
 
-    print("[9/9] 秒传验证与级联删除")
+    print("[9/9] 秒传验证、操作日志与级联删除")
     check_again = http_json(args.base, "POST", "/api/admin/upload/check",
                             body={"fingerprint": fingerprint, "fileName": "sample.mp4", "fileSize": file_size},
                             token=token)
     if not check_again.get("exists") or check_again.get("episodeId") != episode_id:
         raise SystemExit(f"秒传验证失败：{check_again}")
     print(f"      秒传命中 episodeId={check_again['episodeId']}")
+
+    logs = http_json(args.base, "GET", "/api/admin/operation-logs?page=1&size=20", token=token)
+    actions = [item["action"] for item in logs.get("records", [])]
+    if not actions:
+        raise SystemExit("操作日志为空（P1 F-19 审计未生效）")
+    print(f"      [P1] 操作日志 {len(actions)} 条，最近动作：{actions[:5]}")
 
     if args.keep:
         print(f"      保留作品 videoId={video_id}（--keep）")
@@ -295,6 +341,10 @@ def main() -> int:
             if error.code != 3001:
                 raise
         print("      级联删除 ok（作品 3001）")
+        logs_after = http_json(args.base, "GET", "/api/admin/operation-logs?page=1&size=20", token=token)
+        if not any(item["action"] == "删除视频" for item in logs_after.get("records", [])):
+            raise SystemExit("删除操作未写入审计日志")
+        print("      [P1] 删除视频已写入审计日志")
 
     elapsed = time.time() - started
     print(f"\n✅ E2E PASS，用时 {elapsed:.1f}s")

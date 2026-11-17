@@ -12,7 +12,8 @@
 | `dev/init-db.ps1` | 读取 `.env`，执行 `deploy/sql/init.sql`（幂等：建库建表 + 默认管理员） |
 | `dev/start-backend.ps1` | 加载 `.env`、切换到 JDK 21、`mvnw spring-boot:run`（:8080） |
 | `dev/start-redis-dev.ps1` | 启动便携 Redis（需 ≥5.0，项目用 Redis Stream 做转码队列） |
-| `dev/e2e-video-flow.py` | M1–M3 全链路验证：建作品 → 分片上传/断点续传 → 转码（REMUX/TRANSCODE）→ HLS 播放 → 进度记忆 → 秒传 → 级联删除 |
+| `dev/e2e-video-flow.py` | 全链路验证：建作品 → 分片上传/断点续传 → 转码（REMUX/TRANSCODE）→ HLS 播放 → 进度记忆 → 秒传 → 级联删除；P1 起额外校验播放签名/403、切片改写、播放量、统计接口、操作日志 |
+| `dev/e2e-site-gate.py` | P1 站点访问口令专项验证（status/2004/403/2006/cookie/JWT 豁免） |
 | `dev/common.ps1` | 公共函数：加载 `.env`、定位 JDK 21 |
 
 ### 一键跑通本地环境
@@ -32,6 +33,9 @@ cd video-web; npm run dev
 
 # 5) 全链路自测（另开终端；需要 FFmpeg，路径由 .env 的 FFMPEG_PATH 指定）
 python scripts/dev/e2e-video-flow.py
+
+# 6) P1 站点口令验证（需另起一个开启 SITE_ACCESS_PASSWORD 的实例，如 8082）
+python scripts/dev/e2e-site-gate.py --base http://localhost:8082 --password dev-gate
 ```
 
 ### 前置依赖
