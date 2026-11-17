@@ -171,6 +171,7 @@ powershell -ExecutionPolicy Bypass -File scripts/dev/init-db.ps1
 | M2 | 转码流水线与 HLS 播放 | ✅ 已完成（2026-11-16：FFmpeg/Redis Stream Worker/进度/重试/取消 + HLS 播放 + 进度记忆） |
 | M3 | 管理后台 | ✅ 已完成（2026-11-16：视频/分类管理、上传页、仪表盘 + 前台列表/详情/播放页） |
 | P1 | 播放统计/防盗链/站点口令/操作日志 | ✅ 已完成（2026-11-17：见 docs/02-P1功能设计说明.md） |
+| UI | 前端按 Qoder CN 设计规范完全重构 | ✅ 已完成（2026-11-17：见 docs/04-前端设计规范-Qoder.md） |
 | M4 | 部署与加固 | ⬜ 待开始 |
 
 > 每完成一个里程碑，更新此表。
