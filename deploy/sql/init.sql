@@ -126,6 +126,27 @@ CREATE TABLE IF NOT EXISTS `play_history` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='播放进度';
 
 -- ----------------------------
+-- 7. 管理员操作日志表（P1 F-19）
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS `admin_operation_log` (
+  `id`          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id`     BIGINT UNSIGNED DEFAULT NULL,
+  `username`    VARCHAR(64)     DEFAULT NULL,
+  `module`      VARCHAR(32)     NOT NULL COMMENT '模块：视频/分类/上传/转码等',
+  `action`      VARCHAR(64)     NOT NULL COMMENT '动作：新增视频/删除视频等',
+  `method`      VARCHAR(8)      NOT NULL COMMENT 'HTTP 方法',
+  `path`        VARCHAR(255)    NOT NULL COMMENT '请求路径',
+  `detail`      VARCHAR(1024)   DEFAULT NULL COMMENT '请求参数摘要',
+  `ip`          VARCHAR(64)     DEFAULT NULL,
+  `duration_ms` INT             DEFAULT NULL COMMENT '处理耗时（毫秒）',
+  `created_at`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_created` (`created_at`),
+  KEY `idx_user` (`user_id`),
+  KEY `idx_module` (`module`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='管理员操作日志';
+
+-- ----------------------------
 -- 初始数据
 -- ----------------------------
 -- 默认管理员：admin / admin123（首次登录后请立即修改）
