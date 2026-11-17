@@ -1,0 +1,208 @@
+/* ============================================================
+ * Qoder CN 设计令牌（forest 主题 · 浅色 / 深色）
+ * 参考：qoder-cn-design-spec/tokens/design-tokens.json
+ * 规则：颜色/尺寸/动效只在这里定义；页面与组件只消费 var(--q-*)
+ * ============================================================ */
+
+:root,
+html[data-theme='light'] {
+  color-scheme: light;
+
+  /* ---- 背景与表面（bg-layout 页面 / bg-container 容器 / bg-elevated 抬升） ---- */
+  --q-bg-base: #ffffff;
+  --q-bg-container: #ffffff;
+  --q-bg-elevated: #f9f9f9;
+  --q-bg-layout: #ffffff;
+  --q-bg-spotlight: #fafafa;
+  --q-bg-mask: rgba(20, 20, 20, 0.32);
+  --q-bg-highlight: #080807;
+  --q-bg-highlight-hover: #24241f;
+
+  /* ---- 文字层级 ---- */
+  --q-text: #141414;
+  --q-text-secondary: #636261;
+  --q-text-tertiary: #838280;
+  --q-text-quaternary: #aaa9a8;
+  --q-text-on-primary: #fdfdfd;
+
+  /* ---- 边框（发丝描边统一走 box-shadow: var(--q-shadow-border)） ---- */
+  --q-border: #bcbbba;
+  --q-border-secondary: #dddddd;
+  --q-border-tertiary: #e6e6e6;
+  --q-border-quaternary: #eeeeee;
+
+  /* ---- 填充 ---- */
+  --q-fill: #dfdfdf;
+  --q-fill-secondary: rgba(0, 0, 0, 0.07);
+  --q-fill-tertiary: #f6f6f6;
+  --q-fill-quaternary: #fcfcfc;
+
+  /* ---- 主色（forest 灰绿） ---- */
+  --q-primary: #4b6f5a;
+  --q-primary-hover: #436651;
+  --q-primary-active: #3a5747;
+  --q-primary-text: #4b6f5a;
+  --q-primary-bg: #f2f4f2;
+  --q-primary-bg-hover: #e8ecea;
+  --q-primary-border: #d5dbd8;
+  --q-link: #4d9868;
+
+  /* ---- 语义色 ---- */
+  --q-success: #579b6e;
+  --q-success-bg: #ebf7f0;
+  --q-success-border: #b3ddc2;
+  --q-warning: #efb041;
+  --q-warning-bg: #fefbe8;
+  --q-warning-border: #fbe6c3;
+  --q-error: #ec5b56;
+  --q-error-hover: #d94b46;
+  --q-error-bg: #fdf2f0;
+  --q-error-border: #f7cec9;
+  --q-info: #3b81e9;
+  --q-info-bg: #e9f6fe;
+  --q-info-border: #bae2fc;
+
+  /* ---- 阴影 / 发丝描边 ---- */
+  --q-shadow-border: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06),
+    0 2px 4px 0 rgba(0, 0, 0, 0.04);
+  --q-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 28px -18px rgba(0, 0, 0, 0.18);
+  --q-shadow-pop: 0 12px 32px -8px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --q-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+
+  --q-bg-base: #222523;
+  --q-bg-container: #191b1a;
+  --q-bg-elevated: #252825;
+  --q-bg-layout: #191b1a;
+  --q-bg-spotlight: #292e2a;
+  --q-bg-mask: rgba(0, 0, 0, 0.6);
+  --q-bg-highlight: #eeeeeb;
+  --q-bg-highlight-hover: #d6d6d0;
+
+  --q-text: #d9dcd9;
+  --q-text-secondary: #b3bab4;
+  --q-text-tertiary: #949d96;
+  --q-text-quaternary: #8a948c;
+  --q-text-on-primary: #080807;
+
+  --q-border: #404842;
+  --q-border-secondary: #404842;
+  --q-border-tertiary: #363c37;
+  --q-border-quaternary: #2b302c;
+
+  --q-fill: #363d37;
+  --q-fill-secondary: #2d332e;
+  --q-fill-tertiary: #252b26;
+  --q-fill-quaternary: #212622;
+
+  --q-primary: #4d9c61;
+  --q-primary-hover: #62ad78;
+  --q-primary-active: #428955;
+  --q-primary-text: #8ee5a1;
+  --q-primary-bg: #14261c;
+  --q-primary-bg-hover: #1a2e21;
+  --q-primary-border: #335942;
+  --q-link: #8ee5a1;
+
+  --q-success: #73cd94;
+  --q-success-bg: #14261c;
+  --q-success-border: #335942;
+  --q-warning: #faad14;
+  --q-warning-bg: #4a4019;
+  --q-warning-border: #664d19;
+  --q-error: #ff4d4f;
+  --q-error-hover: #e04345;
+  --q-error-bg: #4a1a1b;
+  --q-error-border: #663338;
+  --q-info: #0b83f1;
+  --q-info-bg: #1a2838;
+  --q-info-border: #2a4050;
+
+  --q-shadow-border: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --q-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 32px -20px rgba(0, 0, 0, 0.6);
+  --q-shadow-pop: 0 16px 40px -10px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --q-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+:root {
+  /* ---- 字体 ---- */
+  --q-font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --q-font-brand: 'Instrument Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --q-font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono',
+    monospace;
+
+  /* ---- 字号阶梯（12/13 为 UI 主档） ---- */
+  --q-fs-10: 10px;
+  --q-fs-11: 11px;
+  --q-fs-12: 12px;
+  --q-fs-13: 13px;
+  --q-fs-14: 14px;
+  --q-fs-16: 16px;
+  --q-fs-18: 18px;
+  --q-fs-20: 20px;
+  --q-fs-24: 24px;
+  --q-fs-28: 28px;
+  --q-fs-40: 40px;
+
+  /* ---- 行高 ---- */
+  --q-lh-14: 14px;
+  --q-lh-16: 16px;
+  --q-lh-18: 18px;
+  --q-lh-20: 20px;
+  --q-lh-22: 22px;
+  --q-lh-24: 24px;
+  --q-lh-26: 26px;
+  --q-lh-32: 32px;
+
+  /* ---- 间距（4px 基准） ---- */
+  --q-sp-1: 4px;
+  --q-sp-2: 8px;
+  --q-sp-3: 12px;
+  --q-sp-4: 16px;
+  --q-sp-5: 20px;
+  --q-sp-6: 24px;
+  --q-sp-8: 32px;
+  --q-sp-10: 40px;
+  --q-sp-12: 48px;
+  --q-sp-16: 64px;
+
+  /* ---- 圆角（squircle 体系：控件 16 / 容器 12 / 菜单 8 / 标签 4） ---- */
+  --q-r-xs: 2px;
+  --q-r-sm: 4px;
+  --q-r-md: 6px;
+  --q-r-lg: 8px;
+  --q-r-xl: 12px;
+  --q-r-2xl: 16px;
+  --q-r-full: 9999px;
+  --q-r-control: 16px;
+  --q-r-surface: 12px;
+
+  /* ---- 控件高度阶梯（sm/md/lg = 20/28/36） ---- */
+  --q-ctl-sm: 20px;
+  --q-ctl-md: 28px;
+  --q-ctl-lg: 36px;
+  --q-disabled-opacity: 0.5;
+
+  /* ---- 布局尺寸（Qoder Workbench） ---- */
+  --q-titlebar-h: 40px;
+  --q-sidebar-w: 248px;
+  --q-sidebar-min: 208px;
+  --q-rail-w: 280px;
+  --q-content-max: 924px;
+  --q-player-bg: #101211;
+
+  /* ---- 动效 ---- */
+  --q-dur-instant: 90ms;
+  --q-dur-fast: 150ms;
+  --q-dur-base: 200ms;
+  --q-dur-slow: 240ms;
+  --q-dur-enter: 280ms;
+  --q-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --q-ease-emphasis: cubic-bezier(0.16, 1, 0.3, 1);
+  --q-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}

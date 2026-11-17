@@ -1,3 +1,7 @@
+/* ============================================================
+ * Reset + 全局基线（Qoder 规范：紧凑、克制、可读）
+ * ============================================================ */
+
 *,
 *::before,
 *::after {
@@ -10,10 +14,18 @@ body,
   height: 100%;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
-  font-size: 14px;
-  line-height: 1.6;
+  font-family: var(--q-font-ui);
+  font-size: var(--q-fs-13);
+  line-height: var(--q-lh-20);
+  color: var(--q-text);
+  background-color: var(--q-bg-layout);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -31,6 +43,16 @@ blockquote,
 dl,
 dd {
   margin: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
+  color: var(--q-text);
 }
 
 ul,
@@ -61,7 +83,61 @@ select {
 
 button {
   padding: 0;
-  border: none;
   background: none;
+  border: none;
   cursor: pointer;
+}
+
+/* 选中态：品牌主色低透明度 */
+::selection {
+  color: var(--q-text);
+  background: color-mix(in srgb, var(--q-primary) 24%, transparent);
+}
+
+/* 滚动条：6px / 圆角 3px，默认透明，hover 显示 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--q-fill) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--q-fill);
+  border-radius: 3px;
+  transition: background-color 160ms;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--q-border);
+}
+
+/* 键盘焦点：Qoder 用边框/底色变化替代 ring；这里对无底色变化的元素给极细 outline 兜底 */
+:focus-visible {
+  outline: 2px solid var(--q-primary-border);
+  outline-offset: 2px;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

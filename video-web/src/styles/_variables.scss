@@ -1,25 +1,127 @@
-// 设计变量：深色 ink 底 + 单一蓝色强调，避免彩色堆叠的模板感
-$vk-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
-  'Microsoft YaHei', Roboto, 'Helvetica Neue', Arial, sans-serif;
+// ============================================================
+// 设计变量（Qoder CN 体系）
+// 颜色/尺寸/圆角/动效的单一真源是 _tokens.scss（CSS 变量）；
+// 本文件只做 SCSS 别名与断点 mixin，供页面在 <style> 中 @use。
+// ============================================================
 
-// 深色面（登录页 / 前台 / 后台侧栏共用同一套 ink 色阶）
-$vk-ink-900: #080c13;
-$vk-ink-800: #0d131e;
-$vk-ink-700: #111826;
-$vk-ink-600: #151d2b;
-$vk-line: rgba(255, 255, 255, 0.08);
-$vk-text: #e8edf5;
-$vk-text-muted: #8b97a8;
-$vk-accent: #5b8def;
+/* ---- 字体 ---- */
+$q-font-ui: var(--q-font-ui);
+$q-font-brand: var(--q-font-brand);
+$q-font-mono: var(--q-font-mono);
 
-// 浅色面（管理后台内容区）
-$vk-light-bg: #f5f6f8;
-$vk-light-surface: #ffffff;
-$vk-light-border: #e8ebf0;
-$vk-light-text: #1f2733;
-$vk-light-text-muted: #7b8698;
+/* ---- 颜色（常用语义别名） ---- */
+$q-bg-base: var(--q-bg-base);
+$q-bg-container: var(--q-bg-container);
+$q-bg-elevated: var(--q-bg-elevated);
+$q-bg-layout: var(--q-bg-layout);
+$q-bg-spotlight: var(--q-bg-spotlight);
+$q-bg-highlight: var(--q-bg-highlight);
 
-// 响应式断点
+$q-text: var(--q-text);
+$q-text-secondary: var(--q-text-secondary);
+$q-text-tertiary: var(--q-text-tertiary);
+$q-text-quaternary: var(--q-text-quaternary);
+$q-text-on-primary: var(--q-text-on-primary);
+
+$q-border: var(--q-border);
+$q-border-secondary: var(--q-border-secondary);
+$q-border-tertiary: var(--q-border-tertiary);
+$q-border-quaternary: var(--q-border-quaternary);
+
+$q-fill: var(--q-fill);
+$q-fill-secondary: var(--q-fill-secondary);
+$q-fill-tertiary: var(--q-fill-tertiary);
+$q-fill-quaternary: var(--q-fill-quaternary);
+
+$q-primary: var(--q-primary);
+$q-primary-hover: var(--q-primary-hover);
+$q-primary-active: var(--q-primary-active);
+$q-primary-text: var(--q-primary-text);
+$q-primary-bg: var(--q-primary-bg);
+$q-primary-border: var(--q-primary-border);
+$q-link: var(--q-link);
+
+$q-success: var(--q-success);
+$q-success-bg: var(--q-success-bg);
+$q-warning: var(--q-warning);
+$q-warning-bg: var(--q-warning-bg);
+$q-error: var(--q-error);
+$q-error-bg: var(--q-error-bg);
+$q-info: var(--q-info);
+$q-info-bg: var(--q-info-bg);
+
+/* ---- 阴影 ---- */
+$q-shadow-border: var(--q-shadow-border);
+$q-shadow-card: var(--q-shadow-card);
+$q-shadow-pop: var(--q-shadow-pop);
+
+/* ---- 圆角 ---- */
+$q-r-sm: var(--q-r-sm);
+$q-r-md: var(--q-r-md);
+$q-r-lg: var(--q-r-lg);
+$q-r-xl: var(--q-r-xl);
+$q-r-2xl: var(--q-r-2xl);
+$q-r-control: var(--q-r-control);
+$q-r-surface: var(--q-r-surface);
+
+/* ---- 控件高度 ---- */
+$q-ctl-sm: var(--q-ctl-sm);
+$q-ctl-md: var(--q-ctl-md);
+$q-ctl-lg: var(--q-ctl-lg);
+
+/* ---- 布局与动效 ---- */
+$q-titlebar-h: var(--q-titlebar-h);
+$q-sidebar-w: var(--q-sidebar-w);
+$q-rail-w: var(--q-rail-w);
+$q-content-max: var(--q-content-max);
+$q-dur-fast: var(--q-dur-fast);
+$q-dur-base: var(--q-dur-base);
+$q-dur-slow: var(--q-dur-slow);
+$q-ease: var(--q-ease);
+$q-ease-emphasis: var(--q-ease-emphasis);
+
+/* ---- 响应式断点（三档） ---- */
+$q-breakpoint-wide: 1280px; // 右栏隐藏
+$q-breakpoint-tablet: 1100px; // 侧栏折叠
+$q-breakpoint-mobile: 720px; // 单列
+
+@mixin q-wide {
+  @media (max-width: $q-breakpoint-wide) {
+    @content;
+  }
+}
+
+@mixin q-tablet {
+  @media (max-width: $q-breakpoint-tablet) {
+    @content;
+  }
+}
+
+@mixin q-mobile {
+  @media (max-width: $q-breakpoint-mobile) {
+    @content;
+  }
+}
+
+/* ============================================================
+ * 过渡期兼容别名（旧页面重写完成后移除）
+ * 说明：旧 M0–P1 页面使用 $vk-* 变量，这里映射到新 token，
+ * 保证重构过程中工程始终可编译。
+ * ============================================================ */
+$vk-font-sans: var(--q-font-ui);
+$vk-ink-900: var(--q-bg-layout);
+$vk-ink-800: var(--q-bg-container);
+$vk-ink-700: var(--q-bg-elevated);
+$vk-ink-600: var(--q-fill-tertiary);
+$vk-line: var(--q-border-tertiary);
+$vk-text: var(--q-text);
+$vk-text-muted: var(--q-text-tertiary);
+$vk-accent: var(--q-primary);
+$vk-light-bg: var(--q-bg-layout);
+$vk-light-surface: var(--q-bg-container);
+$vk-light-border: var(--q-border-tertiary);
+$vk-light-text: var(--q-text);
+$vk-light-text-muted: var(--q-text-tertiary);
 $vk-breakpoint-tablet: 900px;
 $vk-breakpoint-mobile: 640px;
 
