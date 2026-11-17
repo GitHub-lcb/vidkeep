@@ -1,280 +1,348 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import AppLogo from '@/components/AppLogo.vue'
+import QIcon from '@/components/QIcon.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 import { useUserStore } from '@/stores/user'
 
-interface AdminMenuItem {
-  index: string
-  title: string
-  /** 未开放模块可置为禁用（当前全部开放） */
-  disabled?: boolean
+/**
+ * 管理后台外壳（Qoder Workbench 风格）：
+ * 40px 顶栏（品牌 + 页面标题 + 动作）/ 248px 导航侧栏 / 内容区（bg-elevated + 白色卡片）。
+ */
+interface NavItem {
+  path: string
+  label: string
+  icon: 'home' | 'film' | 'upload' | 'folder' | 'logs'
 }
 
-// M1 上传与 M3 管理页已开放，P1 操作日志已接入，菜单全部可点击
-const MENU_ITEMS: AdminMenuItem[] = [
-  { index: '/admin/dashboard', title: '仪表盘' },
-  { index: '/admin/videos', title: '视频管理' },
-  { index: '/admin/upload', title: '视频上传' },
-  { index: '/admin/categories', title: '分类管理' },
-  { index: '/admin/logs', title: '操作日志', disabled: false },
+const CONTENT_NAV: NavItem[] = [
+  { path: '/admin/dashboard', label: '概览', icon: 'home' },
+  { path: '/admin/videos', label: '视频管理', icon: 'film' },
+  { path: '/admin/upload', label: '视频上传', icon: 'upload' },
+  { path: '/admin/categories', label: '分类管理', icon: 'folder' },
 ]
+
+const SYSTEM_NAV: NavItem[] = [{ path: '/admin/logs', label: '操作日志', icon: 'logs' }]
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-const isCompact = ref(false)
-const activeMenu = computed<string>(() => route.path)
+const drawerOpen = ref(false)
 const pageTitle = computed<string>(() =>
   typeof route.meta.title === 'string' ? route.meta.title : '管理后台',
 )
-// 窄屏顶栏菜单展示全部已开放项
-const compactMenuItems = MENU_ITEMS
+const avatarLetter = computed<string>(() => (userStore.displayName || 'A').slice(0, 1).toUpperCase())
+const accountName = computed<string>(() => userStore.user?.username ?? 'admin')
 
-let mediaQuery: MediaQueryList | null = null
-
-function handleMediaChange(event: MediaQueryListEvent): void {
-  isCompact.value = event.matches
+function isActive(path: string): boolean {
+  return route.path === path || route.path.startsWith(`${path}/`)
 }
 
-onMounted(() => {
-  mediaQuery = window.matchMedia('(max-width: 900px)')
-  isCompact.value = mediaQuery.matches
-  mediaQuery.addEventListener('change', handleMediaChange)
-})
-
-onBeforeUnmount(() => {
-  mediaQuery?.removeEventListener('change', handleMediaChange)
-  mediaQuery = null
-})
+function closeDrawer(): void {
+  drawerOpen.value = false
+}
 
 async function handleLogout(): Promise<void> {
   await userStore.logout()
-  ElMessage.success('已退出登录')
   await router.replace('/admin/login')
 }
+
+watch(
+  () => route.path,
+  () => {
+    drawerOpen.value = false
+  },
+)
 </script>
 
 <template>
-  <el-container class="admin-layout">
-    <el-aside v-if="!isCompact" class="admin-aside" width="220px">
-      <RouterLink class="admin-brand" to="/admin/dashboard">
-        <span class="admin-brand__mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="15" height="15">
-            <path d="M9 7l8 5-8 5z" fill="currentColor" />
-          </svg>
-        </span>
-        <span class="admin-brand__text">
-          <span class="admin-brand__name">vidkeep</span>
-          <span class="admin-brand__sub">管理后台</span>
-        </span>
+  <div class="admin">
+    <header class="admin-bar">
+      <RouterLink class="admin-bar__brand" to="/admin/dashboard" aria-label="vidkeep 管理后台">
+        <AppLogo size="sm" />
       </RouterLink>
+      <span class="admin-bar__sep" aria-hidden="true" />
+      <h1 class="admin-bar__title">{{ pageTitle }}</h1>
 
-      <el-menu
-        class="admin-menu"
-        :default-active="activeMenu"
-        :router="true"
-        background-color="transparent"
-        text-color="#99a5b6"
-        active-text-color="#ffffff"
-      >
-        <el-menu-item
-          v-for="item in MENU_ITEMS"
-          :key="item.index"
-          :index="item.index"
-          :disabled="item.disabled === true"
+      <div class="admin-bar__actions">
+        <RouterLink class="q-btn q-btn--ghost q-btn--sm admin-bar__front" to="/">
+          <QIcon name="external" :size="14" />
+          <span>查看前台</span>
+        </RouterLink>
+        <ThemeToggle />
+        <button
+          type="button"
+          class="q-icon-btn admin-bar__menu"
+          aria-label="打开导航"
+          @click="drawerOpen = !drawerOpen"
         >
-          <span>{{ item.title }}</span>
-        </el-menu-item>
-      </el-menu>
-    </el-aside>
+          <QIcon name="menu" :size="16" />
+        </button>
+      </div>
+    </header>
 
-    <el-container class="admin-body">
-      <el-header class="admin-header" :height="isCompact ? 'auto' : '60px'">
-        <div class="admin-header__left">
-          <span v-if="!isCompact" class="admin-header__title">{{ pageTitle }}</span>
-          <el-menu
-            v-else
-            class="admin-header__menu"
-            mode="horizontal"
-            :default-active="activeMenu"
-            :router="true"
-            :ellipsis="false"
+    <div class="admin-body">
+      <aside class="admin-side" :class="{ 'is-open': drawerOpen }" aria-label="后台导航">
+        <nav class="admin-nav">
+          <p class="admin-nav__label">内容</p>
+          <RouterLink
+            v-for="item in CONTENT_NAV"
+            :key="item.path"
+            class="admin-nav__item"
+            :class="{ 'is-active': isActive(item.path) }"
+            :to="item.path"
           >
-            <el-menu-item
-              v-for="item in compactMenuItems"
-              :key="item.index"
-              :index="item.index"
-              :disabled="item.disabled === true"
-            >
-              {{ item.title }}
-            </el-menu-item>
-          </el-menu>
-        </div>
+            <QIcon :name="item.icon" :size="16" />
+            <span>{{ item.label }}</span>
+          </RouterLink>
 
-        <div class="admin-header__right">
-          <span class="admin-header__user">{{ userStore.displayName }}</span>
-          <el-button text type="primary" @click="handleLogout">退出登录</el-button>
-        </div>
-      </el-header>
+          <p class="admin-nav__label admin-nav__label--gap">系统</p>
+          <RouterLink
+            v-for="item in SYSTEM_NAV"
+            :key="item.path"
+            class="admin-nav__item"
+            :class="{ 'is-active': isActive(item.path) }"
+            :to="item.path"
+          >
+            <QIcon :name="item.icon" :size="16" />
+            <span>{{ item.label }}</span>
+          </RouterLink>
+        </nav>
 
-      <el-main class="admin-main">
+        <div class="admin-user">
+          <span class="admin-user__avatar">{{ avatarLetter }}</span>
+          <span class="admin-user__body">
+            <span class="admin-user__name">{{ userStore.displayName }}</span>
+            <span class="admin-user__role">{{ accountName }}</span>
+          </span>
+          <button type="button" class="q-icon-btn" aria-label="退出登录" @click="handleLogout">
+            <QIcon name="logout" :size="15" />
+          </button>
+        </div>
+      </aside>
+
+      <button
+        v-if="drawerOpen"
+        type="button"
+        class="admin-mask"
+        aria-label="关闭导航"
+        @click="closeDrawer"
+      />
+
+      <main class="admin-main">
         <RouterView />
-      </el-main>
-    </el-container>
-  </el-container>
+      </main>
+    </div>
+  </div>
 </template>
 
 <style scoped lang="scss">
-@use '../styles/variables' as *;
-
-.admin-layout {
+.admin {
+  display: flex;
+  flex-direction: column;
   height: 100vh;
   overflow: hidden;
-  background: $vk-light-bg;
+  color: var(--q-text);
+  background: var(--q-bg-layout);
 }
 
-.admin-aside {
+/* ---------- 40px 顶栏 ---------- */
+.admin-bar {
   display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: $vk-ink-800;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.admin-brand {
-  display: flex;
+  flex: none;
   align-items: center;
   gap: 10px;
-  height: 60px;
-  padding: 0 18px;
-  color: $vk-text;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  height: var(--q-titlebar-h);
+  padding: 0 12px;
+  background: var(--q-bg-layout);
+  border-bottom: 1px solid var(--q-border-quaternary);
 }
 
-.admin-brand__mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.admin-bar__brand {
   flex: none;
-  width: 24px;
-  height: 24px;
-  color: #ffffff;
-  background: $vk-accent;
-  border-radius: 7px;
+  padding: 0 2px;
 }
 
-.admin-brand__text {
+.admin-bar__sep {
+  width: 1px;
+  height: 16px;
+  background: var(--q-border-tertiary);
+}
+
+.admin-bar__title {
+  font-size: var(--q-fs-13);
+  font-weight: 500;
+  color: var(--q-text-secondary);
+  white-space: nowrap;
+}
+
+.admin-bar__actions {
   display: flex;
-  flex-direction: column;
-  line-height: 1.15;
-}
-
-.admin-brand__name {
-  font-size: 15px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-}
-
-.admin-brand__sub {
-  margin-top: 2px;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: #7c8798;
-}
-
-.admin-menu {
-  flex: 1;
-  padding: 10px 0;
-  overflow-y: auto;
-  border-right: none;
-
-  :deep(.el-menu-item) {
-    height: 42px;
-    margin: 2px 10px;
-    padding: 0 12px;
-    font-size: 13px;
-    color: #99a5b6;
-    border-radius: 8px;
-
-    &:hover {
-      color: $vk-text;
-      background: rgba(255, 255, 255, 0.05);
-    }
-
-    &.is-active {
-      color: #ffffff;
-      background: rgba(91, 141, 239, 0.18);
-    }
-  }
-}
-
-.admin-body {
-  min-width: 0;
-}
-
-.admin-header {
-  display: flex;
-  flex: none;
+  gap: 2px;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 20px;
-  background: $vk-light-surface;
-  border-bottom: 1px solid $vk-light-border;
-
-  @include vk-tablet {
-    padding: 8px 12px;
-  }
+  margin-left: auto;
 }
 
-.admin-header__left {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.admin-header__title {
-  font-size: 15px;
-  font-weight: 600;
-  color: $vk-light-text;
-}
-
-.admin-header__menu {
-  height: 46px;
-  border-bottom: none;
-
-  :deep(.el-menu-item) {
-    height: 46px;
-    padding: 0 10px;
-    font-size: 13px;
-  }
-}
-
-.admin-header__right {
-  display: flex;
-  flex: none;
-  align-items: center;
+.admin-bar__front {
   gap: 6px;
 }
 
-.admin-header__user {
-  max-width: 140px;
-  overflow: hidden;
-  font-size: 13px;
-  color: #4d5868;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+.admin-bar__menu {
+  display: none;
+}
 
-  @include vk-mobile {
-    display: none;
+/* ---------- 侧栏 + 内容 ---------- */
+.admin-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.admin-side {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: var(--q-sidebar-w);
+  padding: 12px 8px;
+  background: var(--q-bg-container);
+  border-right: 1px solid var(--q-border-quaternary);
+}
+
+.admin-nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.admin-nav__label {
+  padding: 0 10px;
+  margin: 6px 0 2px;
+  font-size: var(--q-fs-11);
+  font-weight: 500;
+  color: var(--q-text-quaternary);
+}
+
+.admin-nav__label--gap {
+  margin-top: 18px;
+}
+
+.admin-nav__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  font-size: var(--q-fs-13);
+  color: var(--q-text-secondary);
+  border-radius: var(--q-r-lg);
+  transition: color var(--q-dur-fast) var(--q-ease), background-color var(--q-dur-fast) var(--q-ease);
+
+  &:hover {
+    color: var(--q-text);
+    background: var(--q-fill-tertiary);
+  }
+
+  &.is-active {
+    font-weight: 500;
+    color: var(--q-text);
+    background: var(--q-fill-secondary);
   }
 }
 
+.admin-user {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  margin-top: 8px;
+  border-top: 1px solid var(--q-border-quaternary);
+}
+
+.admin-user__avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  font-size: var(--q-fs-11);
+  font-weight: 600;
+  color: var(--q-primary-text);
+  background: var(--q-primary-bg);
+  border-radius: 50%;
+}
+
+.admin-user__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.admin-user__name {
+  overflow: hidden;
+  font-size: var(--q-fs-12);
+  font-weight: 500;
+  color: var(--q-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-user__role {
+  font-size: var(--q-fs-11);
+  color: var(--q-text-tertiary);
+}
+
 .admin-main {
-  padding: 0;
+  flex: 1;
+  min-width: 0;
   overflow-y: auto;
-  background: $vk-light-bg;
+  background: var(--q-bg-elevated);
+}
+
+.admin-mask {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .admin-side {
+    position: fixed;
+    top: var(--q-titlebar-h);
+    bottom: 0;
+    left: 0;
+    z-index: 40;
+    transform: translateX(-100%);
+    transition: transform var(--q-dur-base) var(--q-ease);
+  }
+
+  .admin-side.is-open {
+    transform: none;
+  }
+
+  .admin-mask {
+    position: fixed;
+    inset: var(--q-titlebar-h) 0 0;
+    z-index: 30;
+    display: block;
+    padding: 0;
+    cursor: pointer;
+    background: var(--q-bg-mask);
+    border: none;
+  }
+
+  .admin-bar__menu {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 720px) {
+  .admin-bar__front span {
+    display: none;
+  }
 }
 </style>
